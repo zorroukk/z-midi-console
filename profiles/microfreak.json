@@ -1,0 +1,340 @@
+{
+  "schema_version": 1,
+  "profile_id": "microfreak",
+  "device": "Arturia MicroFreak",
+  "firmware_basis": "5.0.0",
+  "evidence": {
+    "authority": "official",
+    "source": "Arturia MicroFreak User Manual 5.0.1, Appendix D, PDF pages 146-147 (printed pages 141-142)",
+    "url": "https://downloads.arturia.net/products/microfreak/manual/microfreak_Manual_5_0_1_EN.pdf",
+    "verified_on": "2026-07-21",
+    "lineage": "converted from mf-visualizer control-profile-v5.json (months of live-device proof)"
+  },
+  "scope": {
+    "supports": [
+      "documented_live_midi_cc"
+    ],
+    "does_not_claim": [
+      "full_preset_editing",
+      "mod_matrix_programming",
+      "effect_control",
+      "sample_transfer",
+      "wavetable_transfer",
+      "firmware_operations",
+      "sysex_write_support"
+    ]
+  },
+  "match": {
+    "name_contains": "MicroFreak"
+  },
+  "channel": 0,
+  "notes": [
+    "Hardware mod matrix has no MIDI write path (MatrixBoard precedent): matrix edges in this plugin are SOFTWARE routing, not the synth's internal matrix.",
+    "Device policy carried from v5: require named MicroFreak port (never fall back to first MIDI output); minimum 20ms between sends; verify one parameter on hardware before trusting the rest.",
+    "Software-matrix demo edge (our layer, not the MF internal matrix): LFO sine 2Hz -> cutoff depth 0.4; runs only on Start."
+  ],
+  "sections": {
+    "oscillator": {
+      "label": "Oscillator",
+      "order": 1
+    },
+    "filter": {
+      "label": "Filter",
+      "order": 2
+    },
+    "envelope": {
+      "label": "Envelopes",
+      "order": 3
+    },
+    "modulation": {
+      "label": "Rates / Modulation",
+      "order": 4
+    },
+    "global": {
+      "label": "Global",
+      "order": 5
+    }
+  },
+  "controls": {
+    "oscillator_type": {
+      "label": "Engine",
+      "cc": 9,
+      "widget": "stepped",
+      "kind": "stepped",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "section": "oscillator",
+      "x": 0,
+      "y": 0,
+      "risk": "medium",
+      "note": "Discrete engine selection; boundaries engine-dependent (21 engines FW5)."
+    },
+    "wave": {
+      "label": "Wave",
+      "cc": 10,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "oscillator",
+      "x": 1,
+      "y": 0,
+      "note": "Engine-dependent macro: meaning changes with selected engine."
+    },
+    "timbre": {
+      "label": "Timbre",
+      "cc": 12,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "oscillator",
+      "x": 2,
+      "y": 0,
+      "note": "Engine-dependent macro."
+    },
+    "shape": {
+      "label": "Shape",
+      "cc": 13,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "oscillator",
+      "x": 3,
+      "y": 0,
+      "note": "Engine-dependent macro."
+    },
+    "cutoff": {
+      "label": "Cutoff",
+      "cc": 23,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "filter",
+      "x": 0,
+      "y": 1,
+      "automation_note": "External CC sweeps may staircase; prefer internal modulation for smooth motion."
+    },
+    "resonance": {
+      "label": "Resonance",
+      "cc": 83,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "filter",
+      "x": 1,
+      "y": 1
+    },
+    "filter_amount": {
+      "label": "Filter Amt",
+      "cc": 26,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "filter",
+      "x": 2,
+      "y": 1,
+      "note": "Bipolar-encoded; center point unknown."
+    },
+    "attack": {
+      "label": "Attack",
+      "cc": 105,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "envelope",
+      "x": 0,
+      "y": 2
+    },
+    "decay_release": {
+      "label": "Decay/Release",
+      "cc": 106,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "envelope",
+      "x": 1,
+      "y": 2,
+      "note": "Mode-dependent: decay or release depending on envelope mode."
+    },
+    "sustain": {
+      "label": "Sustain",
+      "cc": 29,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "envelope",
+      "x": 2,
+      "y": 2
+    },
+    "cycling_env_amount": {
+      "label": "Cyc Env Amt",
+      "cc": 24,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "envelope",
+      "x": 3,
+      "y": 2
+    },
+    "cycling_env_rise": {
+      "label": "Cyc Env Rise",
+      "cc": 102,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "envelope",
+      "x": 4,
+      "y": 2
+    },
+    "cycling_env_hold": {
+      "label": "Cyc Env Hold",
+      "cc": 28,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "envelope",
+      "x": 5,
+      "y": 2
+    },
+    "cycling_env_fall": {
+      "label": "Cyc Env Fall",
+      "cc": 103,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "envelope",
+      "x": 6,
+      "y": 2
+    },
+    "lfo_rate_free": {
+      "label": "LFO Rate",
+      "cc": 93,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "modulation",
+      "x": 0,
+      "y": 3
+    },
+    "lfo_rate_sync": {
+      "label": "LFO Sync",
+      "cc": 94,
+      "widget": "stepped",
+      "kind": "stepped",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "snap12"
+      },
+      "section": "modulation",
+      "x": 1,
+      "y": 3,
+      "note": "Stepped sync division selector."
+    },
+    "arp_seq_rate_free": {
+      "label": "Arp/Seq Rate",
+      "cc": 91,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "modulation",
+      "x": 2,
+      "y": 3
+    },
+    "arp_seq_rate_sync": {
+      "label": "Arp/Seq Sync",
+      "cc": 92,
+      "widget": "stepped",
+      "kind": "stepped",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "snap12"
+      },
+      "section": "modulation",
+      "x": 3,
+      "y": 3,
+      "note": "Stepped sync division selector."
+    },
+    "spice": {
+      "label": "Spice",
+      "cc": 2,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "global",
+      "x": 0,
+      "y": 4
+    },
+    "glide": {
+      "label": "Glide",
+      "cc": 5,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "global",
+      "x": 1,
+      "y": 4
+    },
+    "keyboard_hold": {
+      "label": "Keys Hold",
+      "cc": 64,
+      "widget": "toggle",
+      "kind": "toggle",
+      "min": 0,
+      "max": 127,
+      "section": "global",
+      "x": 2,
+      "y": 4
+    }
+  },
+  "aliases": {
+    "osc_type": "oscillator_type",
+    "oscillator_wave": "wave",
+    "oscillator_timbre": "timbre",
+    "oscillator_shape": "shape",
+    "filter_cutoff": "cutoff",
+    "filter_resonance": "resonance",
+    "envelope_attack": "attack",
+    "envelope_decay": "decay_release",
+    "envelope_sustain": "sustain"
+  },
+  "matrix": [
+    {
+      "source": "lfo",
+      "target": "cutoff",
+      "depth": 0.4,
+      "mode": "add"
+    }
+  ],
+  "lfo": {
+    "wave": "sine",
+    "rate_hz": 2.0
+  },
+  "keyboard": {
+    "keys": 25,
+    "first": 48
+  }
+}

@@ -1,0 +1,944 @@
+{
+  "schema_version": 1,
+  "profile_id": "ableton-push",
+  "device": "Ableton Push 3",
+  "firmware_basis": "Push3@2.4.5b8",
+  "evidence": {
+    "authority": "community-verified",
+    "source": "federico-pepe/ableton-push-hack docs/push3-button-map.md \u2014 empirical sweep on Push 3 hardware, re-verified on tethered Push 3 2026-08-16 (87/87 CCs, 13/13 touch notes, zero unknowns)",
+    "url": "https://github.com/federico-pepe/ableton-push-hack/blob/main/docs/push3-button-map.md",
+    "verified_on": "2026-11-09",
+    "lineage": "map transcribed verbatim; nothing reverse-engineered"
+  },
+  "scope": {
+    "supports": [
+      "documented_live_midi_cc",
+      "pad_grid_notes_via_keyboard_block"
+    ],
+    "does_not_claim": [
+      "led_feedback_writes",
+      "display_graphics",
+      "touch_note_bindings",
+      "pitch_bend_strip",
+      "mpe_aftertouch",
+      "push2_exactness"
+    ]
+  },
+  "match": {
+    "name_contains": "Ableton Push"
+  },
+  "channel": 0,
+  "keyboard": {
+    "first": 36,
+    "keys": 64
+  },
+  "notes": [
+    "Pads: 8x8 grid sends Note On/Off ch 1, bottom-left = 36 .. top-right = 99 \u2014 the keyboard block renders exactly that range; velocity = pressure.",
+    "All 10 encoders + jog are RELATIVE (CW=1, CCW=127, accelerate on fast turns): the console shows raw deltas, not positions. Buttons are momentary (press=127, release=0).",
+    "Touch sensors (Notes 0-13: encoders 0-7, volume 8, tempo 10, jog 11, strip 12, D-pad 13) are notes, not CCs \u2014 not bindable as controls (wire law).",
+    "Touch strip position is pitch bend on ch 1 \u2014 not CC-bindable.",
+    "Push 2 differences (same layout, mostly identical): New = CC 87 (not 92), Master/Stop Clip = CC 52/53, Browse = CC 111, Swing encoder = CC 15 (which Push 3 uses for the tempo-encoder press).",
+    "Sending absolute CCs back to encoder CC numbers for LED feedback is unverified on real hardware \u2014 treat writes to encoders as experimental.",
+    "Aftertouch: poly pressure per the map; tethered Push 3 with MPE showed channel pressure instead \u2014 unconfirmed, not mapped."
+  ],
+  "sections": {
+    "encoders": {
+      "label": "Encoders",
+      "row": 0,
+      "order": 0
+    },
+    "jog": {
+      "label": "Jog & Strip",
+      "row": 0,
+      "order": 1
+    },
+    "global": {
+      "label": "Global",
+      "row": 0,
+      "order": 2
+    },
+    "screen": {
+      "label": "Screen Buttons",
+      "row": 1,
+      "order": 0
+    },
+    "transport": {
+      "label": "Transport",
+      "row": 1,
+      "order": 1
+    },
+    "track": {
+      "label": "Track",
+      "row": 1,
+      "order": 2
+    },
+    "edit": {
+      "label": "Edit",
+      "row": 2,
+      "order": 0
+    },
+    "views": {
+      "label": "Views & Modes",
+      "row": 2,
+      "order": 1
+    },
+    "navigate": {
+      "label": "Navigate",
+      "row": 2,
+      "order": 2
+    },
+    "steps": {
+      "label": "Step Resolution",
+      "row": 3,
+      "order": 0
+    },
+    "modifiers": {
+      "label": "Modifiers",
+      "row": 3,
+      "order": 1
+    }
+  },
+  "controls": {
+    "enc1": {
+      "label": "Encoder 1",
+      "cc": 71,
+      "widget": "knob",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "risk": "low",
+      "note": "Relative encoder: CW sends 1, CCW sends 127 (2's-comp delta, accelerates) \u2014 the console shows raw deltas, not absolute position.",
+      "section": "encoders",
+      "x": 0,
+      "y": 0
+    },
+    "enc2": {
+      "label": "Encoder 2",
+      "cc": 72,
+      "widget": "knob",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "risk": "low",
+      "note": "Relative encoder: CW sends 1, CCW sends 127 (2's-comp delta, accelerates) \u2014 the console shows raw deltas, not absolute position.",
+      "section": "encoders",
+      "x": 1,
+      "y": 0
+    },
+    "enc3": {
+      "label": "Encoder 3",
+      "cc": 73,
+      "widget": "knob",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "risk": "low",
+      "note": "Relative encoder: CW sends 1, CCW sends 127 (2's-comp delta, accelerates) \u2014 the console shows raw deltas, not absolute position.",
+      "section": "encoders",
+      "x": 2,
+      "y": 0
+    },
+    "enc4": {
+      "label": "Encoder 4",
+      "cc": 74,
+      "widget": "knob",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "risk": "low",
+      "note": "Relative encoder: CW sends 1, CCW sends 127 (2's-comp delta, accelerates) \u2014 the console shows raw deltas, not absolute position.",
+      "section": "encoders",
+      "x": 3,
+      "y": 0
+    },
+    "enc5": {
+      "label": "Encoder 5",
+      "cc": 75,
+      "widget": "knob",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "risk": "low",
+      "note": "Relative encoder: CW sends 1, CCW sends 127 (2's-comp delta, accelerates) \u2014 the console shows raw deltas, not absolute position.",
+      "section": "encoders",
+      "x": 4,
+      "y": 0
+    },
+    "enc6": {
+      "label": "Encoder 6",
+      "cc": 76,
+      "widget": "knob",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "risk": "low",
+      "note": "Relative encoder: CW sends 1, CCW sends 127 (2's-comp delta, accelerates) \u2014 the console shows raw deltas, not absolute position.",
+      "section": "encoders",
+      "x": 0,
+      "y": 1
+    },
+    "enc7": {
+      "label": "Encoder 7",
+      "cc": 77,
+      "widget": "knob",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "risk": "low",
+      "note": "Relative encoder: CW sends 1, CCW sends 127 (2's-comp delta, accelerates) \u2014 the console shows raw deltas, not absolute position.",
+      "section": "encoders",
+      "x": 1,
+      "y": 1
+    },
+    "enc8": {
+      "label": "Encoder 8",
+      "cc": 78,
+      "widget": "knob",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "risk": "low",
+      "note": "Relative encoder: CW sends 1, CCW sends 127 (2's-comp delta, accelerates) \u2014 the console shows raw deltas, not absolute position.",
+      "section": "encoders",
+      "x": 2,
+      "y": 1
+    },
+    "vol_enc": {
+      "label": "Volume wheel",
+      "cc": 79,
+      "widget": "knob",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "risk": "low",
+      "note": "Relative encoder: CW sends 1, CCW sends 127 (2's-comp delta, accelerates) \u2014 the console shows raw deltas, not absolute position. Press sends CC 111.",
+      "section": "encoders",
+      "x": 3,
+      "y": 1
+    },
+    "tempo_enc": {
+      "label": "Tempo wheel",
+      "cc": 14,
+      "widget": "knob",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "risk": "low",
+      "note": "Relative encoder: CW sends 1, CCW sends 127 (2's-comp delta, accelerates) \u2014 the console shows raw deltas, not absolute position. Press sends CC 15.",
+      "section": "encoders",
+      "x": 4,
+      "y": 1
+    },
+    "jog_rot": {
+      "label": "Jog rotate",
+      "cc": 70,
+      "widget": "knob",
+      "min": 0,
+      "max": 127,
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "risk": "low",
+      "note": "Relative: CW=1, CCW=127.",
+      "section": "jog",
+      "x": 0,
+      "y": 0
+    },
+    "jog_press": {
+      "label": "Jog press",
+      "cc": 94,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "jog",
+      "x": 1,
+      "y": 0
+    },
+    "jog_left": {
+      "label": "Jog click left",
+      "cc": 93,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "jog",
+      "x": 2,
+      "y": 0
+    },
+    "jog_right": {
+      "label": "Jog click right",
+      "cc": 95,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "jog",
+      "x": 3,
+      "y": 0
+    },
+    "strip_lbl": {
+      "label": "Touch strip = pitch bend (ch 1), touch = Note 12 \u2014 not CC-bindable",
+      "widget": "label",
+      "section": "jog",
+      "x": 4,
+      "y": 0
+    },
+    "set_btn": {
+      "label": "Set",
+      "cc": 80,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "global",
+      "x": 0,
+      "y": 0
+    },
+    "settings_btn": {
+      "label": "Settings",
+      "cc": 30,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "global",
+      "x": 1,
+      "y": 0
+    },
+    "help_btn": {
+      "label": "Help",
+      "cc": 81,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "global",
+      "x": 2,
+      "y": 0
+    },
+    "user_btn": {
+      "label": "User Mode",
+      "cc": 59,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "global",
+      "x": 3,
+      "y": 0
+    },
+    "scr_top1": {
+      "label": "Screen top 1",
+      "cc": 102,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 0,
+      "y": 0
+    },
+    "scr_top2": {
+      "label": "Screen top 2",
+      "cc": 103,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 1,
+      "y": 0
+    },
+    "scr_top3": {
+      "label": "Screen top 3",
+      "cc": 104,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 2,
+      "y": 0
+    },
+    "scr_top4": {
+      "label": "Screen top 4",
+      "cc": 105,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 3,
+      "y": 0
+    },
+    "scr_top5": {
+      "label": "Screen top 5",
+      "cc": 106,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 4,
+      "y": 0
+    },
+    "scr_top6": {
+      "label": "Screen top 6",
+      "cc": 107,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 0,
+      "y": 1
+    },
+    "scr_top7": {
+      "label": "Screen top 7",
+      "cc": 108,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 1,
+      "y": 1
+    },
+    "scr_top8": {
+      "label": "Screen top 8",
+      "cc": 109,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 2,
+      "y": 1
+    },
+    "scr_bot1": {
+      "label": "Screen bottom 1",
+      "cc": 20,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 3,
+      "y": 1
+    },
+    "scr_bot2": {
+      "label": "Screen bottom 2",
+      "cc": 21,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 4,
+      "y": 1
+    },
+    "scr_bot3": {
+      "label": "Screen bottom 3",
+      "cc": 22,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 0,
+      "y": 2
+    },
+    "scr_bot4": {
+      "label": "Screen bottom 4",
+      "cc": 23,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 1,
+      "y": 2
+    },
+    "scr_bot5": {
+      "label": "Screen bottom 5",
+      "cc": 24,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 2,
+      "y": 2
+    },
+    "scr_bot6": {
+      "label": "Screen bottom 6",
+      "cc": 25,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 3,
+      "y": 2
+    },
+    "scr_bot7": {
+      "label": "Screen bottom 7",
+      "cc": 26,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 4,
+      "y": 2
+    },
+    "scr_bot8": {
+      "label": "Screen bottom 8",
+      "cc": 27,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "screen",
+      "x": 0,
+      "y": 3
+    },
+    "play_btn": {
+      "label": "Play",
+      "cc": 85,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "transport",
+      "x": 0,
+      "y": 0
+    },
+    "record_btn": {
+      "label": "Record",
+      "cc": 86,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "transport",
+      "x": 1,
+      "y": 0
+    },
+    "capture_btn": {
+      "label": "Capture",
+      "cc": 65,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "transport",
+      "x": 2,
+      "y": 0
+    },
+    "tap_btn": {
+      "label": "Tap Tempo",
+      "cc": 3,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "transport",
+      "x": 3,
+      "y": 0
+    },
+    "metro_btn": {
+      "label": "Metronome",
+      "cc": 9,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "transport",
+      "x": 4,
+      "y": 0
+    },
+    "quantize_btn": {
+      "label": "Quantize",
+      "cc": 116,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "transport",
+      "x": 0,
+      "y": 1
+    },
+    "automate_btn": {
+      "label": "Automate",
+      "cc": 89,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "transport",
+      "x": 1,
+      "y": 1
+    },
+    "fixedlen_btn": {
+      "label": "Fixed Length",
+      "cc": 90,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "transport",
+      "x": 2,
+      "y": 1
+    },
+    "new_btn": {
+      "label": "New",
+      "cc": 92,
+      "widget": "momentary",
+      "risk": "low",
+      "note": "Push 2 sends CC 87 for New.",
+      "section": "transport",
+      "x": 3,
+      "y": 1
+    },
+    "mute_btn": {
+      "label": "Mute",
+      "cc": 60,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "track",
+      "x": 0,
+      "y": 0
+    },
+    "solo_btn": {
+      "label": "Solo",
+      "cc": 61,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "track",
+      "x": 1,
+      "y": 0
+    },
+    "stopclips_btn": {
+      "label": "Stop Clips",
+      "cc": 29,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "track",
+      "x": 2,
+      "y": 0
+    },
+    "lock_btn": {
+      "label": "Lock",
+      "cc": 83,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "track",
+      "x": 3,
+      "y": 0
+    },
+    "selmain_btn": {
+      "label": "Select main channel",
+      "cc": 28,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "track",
+      "x": 4,
+      "y": 0
+    },
+    "undo_btn": {
+      "label": "Undo",
+      "cc": 119,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "edit",
+      "x": 0,
+      "y": 0
+    },
+    "save_btn": {
+      "label": "Save",
+      "cc": 82,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "edit",
+      "x": 1,
+      "y": 0
+    },
+    "add_btn": {
+      "label": "Add",
+      "cc": 32,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "edit",
+      "x": 2,
+      "y": 0
+    },
+    "swap_btn": {
+      "label": "Swap",
+      "cc": 33,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "edit",
+      "x": 3,
+      "y": 0
+    },
+    "dloop_btn": {
+      "label": "Double Loop",
+      "cc": 117,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "edit",
+      "x": 4,
+      "y": 0
+    },
+    "dup_btn": {
+      "label": "D-Pad Up",
+      "cc": 46,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "navigate",
+      "x": 4,
+      "y": 0
+    },
+    "convert_btn": {
+      "label": "Convert",
+      "cc": 35,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "edit",
+      "x": 1,
+      "y": 1
+    },
+    "delete_btn": {
+      "label": "Delete",
+      "cc": 118,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "edit",
+      "x": 2,
+      "y": 1
+    },
+    "device_btn": {
+      "label": "Device View",
+      "cc": 110,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "views",
+      "x": 0,
+      "y": 0
+    },
+    "mixer_btn": {
+      "label": "Mixer View",
+      "cc": 112,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "views",
+      "x": 1,
+      "y": 0
+    },
+    "clip_btn": {
+      "label": "Clip View",
+      "cc": 113,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "views",
+      "x": 2,
+      "y": 0
+    },
+    "sessionview_btn": {
+      "label": "Session View",
+      "cc": 34,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "views",
+      "x": 3,
+      "y": 0
+    },
+    "note_btn": {
+      "label": "Note",
+      "cc": 50,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "views",
+      "x": 4,
+      "y": 0
+    },
+    "session_btn": {
+      "label": "Session",
+      "cc": 51,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "views",
+      "x": 0,
+      "y": 1
+    },
+    "scale_btn": {
+      "label": "Scale",
+      "cc": 58,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "views",
+      "x": 1,
+      "y": 1
+    },
+    "layout_btn": {
+      "label": "Layout",
+      "cc": 31,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "views",
+      "x": 2,
+      "y": 1
+    },
+    "repeat_btn": {
+      "label": "Repeat",
+      "cc": 56,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "views",
+      "x": 3,
+      "y": 1
+    },
+    "accent_btn": {
+      "label": "Accent",
+      "cc": 57,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "views",
+      "x": 4,
+      "y": 1
+    },
+    "octup_btn": {
+      "label": "Octave Up",
+      "cc": 55,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "navigate",
+      "x": 0,
+      "y": 0
+    },
+    "octdown_btn": {
+      "label": "Octave Down",
+      "cc": 54,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "navigate",
+      "x": 1,
+      "y": 0
+    },
+    "pageleft_btn": {
+      "label": "Page Left",
+      "cc": 62,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "navigate",
+      "x": 2,
+      "y": 0
+    },
+    "pageright_btn": {
+      "label": "Page Right",
+      "cc": 63,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "navigate",
+      "x": 3,
+      "y": 0
+    },
+    "dright_btn": {
+      "label": "D-Pad Right",
+      "cc": 45,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "navigate",
+      "x": 0,
+      "y": 1
+    },
+    "ddown_btn": {
+      "label": "D-Pad Down",
+      "cc": 47,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "navigate",
+      "x": 1,
+      "y": 1
+    },
+    "dleft_btn": {
+      "label": "D-Pad Left",
+      "cc": 44,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "navigate",
+      "x": 2,
+      "y": 1
+    },
+    "dcenter_btn": {
+      "label": "D-Pad press",
+      "cc": 91,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "navigate",
+      "x": 3,
+      "y": 1
+    },
+    "step_0": {
+      "label": "1/4",
+      "cc": 36,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "steps",
+      "x": 0,
+      "y": 0
+    },
+    "step_1": {
+      "label": "1/4t",
+      "cc": 37,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "steps",
+      "x": 1,
+      "y": 0
+    },
+    "step_2": {
+      "label": "1/8",
+      "cc": 38,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "steps",
+      "x": 2,
+      "y": 0
+    },
+    "step_3": {
+      "label": "1/8t",
+      "cc": 39,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "steps",
+      "x": 3,
+      "y": 0
+    },
+    "step_4": {
+      "label": "1/16",
+      "cc": 40,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "steps",
+      "x": 4,
+      "y": 0
+    },
+    "step_5": {
+      "label": "1/16t",
+      "cc": 41,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "steps",
+      "x": 0,
+      "y": 1
+    },
+    "step_6": {
+      "label": "1/32",
+      "cc": 42,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "steps",
+      "x": 1,
+      "y": 1
+    },
+    "step_7": {
+      "label": "1/32t",
+      "cc": 43,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "steps",
+      "x": 2,
+      "y": 1
+    },
+    "shift_btn": {
+      "label": "Shift",
+      "cc": 49,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "modifiers",
+      "x": 0,
+      "y": 0
+    },
+    "select_btn": {
+      "label": "Select",
+      "cc": 48,
+      "widget": "momentary",
+      "risk": "low",
+      "section": "modifiers",
+      "x": 1,
+      "y": 0
+    }
+  }
+}

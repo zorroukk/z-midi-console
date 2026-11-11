@@ -1,0 +1,280 @@
+{
+  "channel": 9,
+  "controls": {
+    "knob1": {
+      "cc": 16,
+      "label": "Knob 1",
+      "note": "Assignable on the device (Setting mode) - rebind here after assigning",
+      "risk": "low",
+      "section": "controls",
+      "widget": "knob",
+      "x": 0,
+      "y": 0
+    },
+    "knob2": {
+      "cc": 17,
+      "label": "Knob 2",
+      "note": "Assignable on the device (Setting mode) - rebind here after assigning",
+      "risk": "low",
+      "section": "controls",
+      "widget": "knob",
+      "x": 1,
+      "y": 0
+    },
+    "mode-note": {
+      "label": "TYPE/OFF VAL/VELOCITY/PORT/FIX.VEL/SWAP/X-PAD/SCENE + HOLD/FLAM/ROLL/PEDAL/KNOB1/KNOB2/Y-PAD send no MIDI (Setting-mode selectors)",
+      "section": "mode_keys",
+      "w": 6,
+      "widget": "label",
+      "x": 0,
+      "y": 0
+    },
+    "pad1": {
+      "cc": 36,
+      "kind": "momentary",
+      "label": "Kick",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 0,
+      "y": 0
+    },
+    "pad10": {
+      "cc": 50,
+      "kind": "momentary",
+      "label": "Hi Tom",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 1,
+      "y": 2
+    },
+    "pad11": {
+      "cc": 49,
+      "kind": "momentary",
+      "label": "Crash",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 2,
+      "y": 2
+    },
+    "pad12": {
+      "cc": 51,
+      "kind": "momentary",
+      "label": "Ride",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 3,
+      "y": 2
+    },
+    "pad13": {
+      "cc": 70,
+      "kind": "momentary",
+      "label": "Shaker",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 0,
+      "y": 3
+    },
+    "pad14": {
+      "cc": 54,
+      "kind": "momentary",
+      "label": "Tamb",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 1,
+      "y": 3
+    },
+    "pad15": {
+      "cc": 56,
+      "kind": "momentary",
+      "label": "Cowbell",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 2,
+      "y": 3
+    },
+    "pad16": {
+      "cc": 75,
+      "kind": "momentary",
+      "label": "Click",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 3,
+      "y": 3
+    },
+    "pad2": {
+      "cc": 38,
+      "kind": "momentary",
+      "label": "Snare",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 1,
+      "y": 0
+    },
+    "pad3": {
+      "cc": 42,
+      "kind": "momentary",
+      "label": "HH Closed",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 2,
+      "y": 0
+    },
+    "pad4": {
+      "cc": 44,
+      "kind": "momentary",
+      "label": "HH Pedal",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 3,
+      "y": 0
+    },
+    "pad5": {
+      "cc": 46,
+      "kind": "momentary",
+      "label": "HH Open",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 0,
+      "y": 1
+    },
+    "pad6": {
+      "cc": 37,
+      "kind": "momentary",
+      "label": "Rim",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 1,
+      "y": 1
+    },
+    "pad7": {
+      "cc": 39,
+      "kind": "momentary",
+      "label": "Clap",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 2,
+      "y": 1
+    },
+    "pad8": {
+      "cc": 45,
+      "kind": "momentary",
+      "label": "Low Tom",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 3,
+      "y": 1
+    },
+    "pad9": {
+      "cc": 47,
+      "kind": "momentary",
+      "label": "Mid Tom",
+      "risk": "low",
+      "section": "pads",
+      "widget": "momentary",
+      "x": 0,
+      "y": 2
+    },
+    "pedal": {
+      "cc": 20,
+      "label": "Pedal",
+      "note": "Pedal jack: note OR CC per device setting - mapped as CC here",
+      "risk": "low",
+      "section": "controls",
+      "widget": "slider",
+      "x": 4,
+      "y": 0
+    },
+    "xy-x": {
+      "cc": 18,
+      "label": "XY-Pad X",
+      "note": "X-Y pad sends two messages (CC or pitch bend per device setting)",
+      "risk": "low",
+      "section": "controls",
+      "widget": "slider",
+      "x": 2,
+      "y": 0
+    },
+    "xy-y": {
+      "cc": 19,
+      "label": "XY-Pad Y",
+      "note": "Y can also be pitch bend - if so it is not CC-bindable",
+      "risk": "low",
+      "section": "controls",
+      "widget": "slider",
+      "x": 3,
+      "y": 0
+    }
+  },
+  "device": "KORG padKONTROL",
+  "evidence": {
+    "authority": "manufacturer-manual (partial)",
+    "lineage": "channel-10 pad default + assignability from KORG docs; note numbers = GM drum suggestion, honestly labelled",
+    "source": "KORG padKONTROL MIDI Implementation + Owner's Manual + EasyStart: pads/knobs/XY/pedal are ALL assignable per scene; pads default to MIDI ch 10; factory pad NOTES are scene-based (30 preload scenes), no fixed factory note table is published - so the GM drum map below is a SUGGESTION the console can re-learn, not a factory transcription",
+    "url": "https://cdn.korg.com/us/support/download/files/e0095373f914b9767964666714658b2c.txt (MIDI imp) + https://media.djmania.net/manuales/pdf/Manual_Korg_Pad_Kontrol_BK.pdf (EasyStart)",
+    "verified_on": "2026-11-10"
+  },
+  "firmware_basis": "standard MIDI mode (not native KORG SysEx)",
+  "keyboard": {
+    "first": 36,
+    "keys": 16
+  },
+  "match": {
+    "name_contains": "padKONTROL"
+  },
+  "notes": [
+    "Pads default to MIDI channel 10 (profile channel set to match). The keyboard block renders exactly the 16 pad notes so the on-screen piano plays the kit too.",
+    "Pad NOTES here are a General-Midi drum suggestion (36..51): the padKONTROL has no fixed factory note table - every scene assigns its own. Play a pad and the console passive-learns the REAL number, or rebind from the edit menu.",
+    "Knob 1/2, the X-Y pad (X/Y) and the pedal jack are fully assignable in the device's Setting mode - the CCs here (16/17, 18/19, 20) are starting points; rebind in the console after assigning on the device.",
+    "The device appears as TWO MIDI ports (Port A / Port B). One profile binds one bus: if your scene splits pads across ports, point the bus at Port A or use a Port A+B scene.",
+    "Left keys (TYPE, OFF VAL, VELOCITY, PORT, FIX.VEL, SWAP, X-PAD, SCENE) and right keys (HOLD, FLAM, ROLL, PEDAL, KNOB1, KNOB2, Y-PAD) are Setting-mode selectors - they send no MIDI in standard mode, so they cannot be bound.",
+    "Pad LEDs are scene-driven (native SysEx only) - the console does not write them."
+  ],
+  "profile_id": "korg-padkontrol",
+  "schema_version": 1,
+  "scope": {
+    "does_not_claim": [
+      "pad_led_writes",
+      "mode_key_midi",
+      "native_korg_sysex",
+      "per_pad_velocity_curves",
+      "port_b_split",
+      "factory_note_exactness"
+    ],
+    "supports": [
+      "documented_live_midi_notes_and_cc",
+      "pads_as_notes_via_keyboard_block"
+    ]
+  },
+  "sections": {
+    "controls": {
+      "label": "Knobs / XY / Pedal",
+      "order": 1,
+      "row": 0
+    },
+    "mode_keys": {
+      "label": "Mode keys",
+      "order": 0,
+      "row": 1
+    },
+    "pads": {
+      "label": "Pads (4x4)",
+      "order": 0,
+      "row": 0
+    }
+  }
+}

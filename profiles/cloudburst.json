@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "profile_id": "cloudburst",
+  "device": "Strymon Cloudburst",
+  "firmware_basis": "1.24",
+  "evidence": {
+    "authority": "official",
+    "source": "Strymon Cloudburst User Manual Rev D, 'MIDI Functionality' + 'MIDI Specifications' (mirrored in vault Raw Sources/Cloudburst/)",
+    "url": "https://strymon.com/app/downloads/cloudburst/Cloudburst_UserManual_RevD.pdf",
+    "verified_on": "2026-11-09",
+    "lineage": "transcribed from vault Wiki/Cloudburst/midi-control.md (verbatim CC table, phase-0 open questions carried below)"
+  },
+  "scope": {
+    "supports": [
+      "documented_live_midi_cc"
+    ],
+    "does_not_claim": [
+      "preset_rewrite_over_midi",
+      "sysex_bulk_support",
+      "knob_echo_from_pedal",
+      "firmware_operations"
+    ]
+  },
+  "match": {
+    "name_contains": "Cloudburst"
+  },
+  "channel": 0,
+  "notes": [
+    "On/off convention (vendor): 0 = off, ANY other value (1-127) = on. Tables print 0/127 because controllers send extremes.",
+    "Presets: 300 slots (0-299) across 3 banks; send CC0 (bank number) BEFORE EACH PC; always powers up in bank 0. PC0 = Favorite, PC127 = Manual Mode.",
+    "UNVERIFIED (phase-0 list): exact Windows port name over USB-C (match rule may need adjusting), whether pedal knob turns echo CCs back (MIDI OUT must be 'SEND CC, OTHER' — live mirroring may stay dark), CC0 value for bank 3 (range says 2, enumeration prints 3).",
+    "No SysEx bulk protocol exists for this pedal: presets can only be saved human-in-the-loop (hold footswitch 2 s, then send a PC).",
+    "Vendor comms test: send CC102 value 127 with the pedal bypassed -> effect engages, LED turns RED.",
+    "CC17 (mp level adjust) requires firmware 1.21+.",
+    "Matrix base capture on this pedal: if the pedal does not echo, move a control from the PANE once (our send becomes the known base) before starting a matrix on it."
+  ],
+  "sections": {
+    "tone": {
+      "label": "Tone",
+      "order": 1
+    },
+    "pedals": {
+      "label": "Pedal actions",
+      "order": 2
+    },
+    "utility": {
+      "label": "Utility / presets",
+      "order": 3
+    }
+  },
+  "controls": {
+    "decay": {
+      "label": "Decay",
+      "cc": 12,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "tone",
+      "x": 0,
+      "y": 0
+    },
+    "pre_delay": {
+      "label": "Pre-Delay",
+      "cc": 13,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "tone",
+      "x": 1,
+      "y": 0
+    },
+    "tone": {
+      "label": "Tone",
+      "cc": 14,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "tone",
+      "x": 2,
+      "y": 0
+    },
+    "mod": {
+      "label": "Mod",
+      "cc": 15,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "tone",
+      "x": 3,
+      "y": 0
+    },
+    "mix": {
+      "label": "Mix",
+      "cc": 16,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "tone",
+      "x": 4,
+      "y": 0
+    },
+    "ensemble": {
+      "label": "Ensemble",
+      "cc": 11,
+      "widget": "stepped",
+      "kind": "stepped",
+      "min": 1,
+      "max": 3,
+      "labels": {
+        "1": "Off",
+        "2": "mp",
+        "3": "Forte"
+      },
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "section": "tone",
+      "x": 5,
+      "y": 0,
+      "risk": "medium",
+      "note": "0 is undocumented — never send it (refuse to send, per vault phase-0 ruling)."
+    },
+    "mp_level": {
+      "label": "mp Level",
+      "cc": 17,
+      "widget": "knob",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "tone",
+      "x": 6,
+      "y": 0,
+      "note": "Firmware 1.21+. Manual frames it around LEVEL ADJUST MODE."
+    },
+    "engage": {
+      "label": "Engage",
+      "cc": 102,
+      "widget": "toggle",
+      "kind": "toggle",
+      "min": 0,
+      "max": 127,
+      "section": "pedals",
+      "x": 0,
+      "y": 1,
+      "note": "0 = bypass, 1-127 = engage. CC102=127 is the vendor comms ping."
+    },
+    "freeze": {
+      "label": "Freeze",
+      "cc": 97,
+      "widget": "momentary",
+      "kind": "momentary",
+      "min": 0,
+      "max": 127,
+      "section": "pedals",
+      "x": 1,
+      "y": 1,
+      "note": "0 = release, 1-127 = hold (momentary semantics)."
+    },
+    "infinite": {
+      "label": "Infinite",
+      "cc": 98,
+      "widget": "momentary",
+      "kind": "momentary",
+      "min": 0,
+      "max": 127,
+      "section": "pedals",
+      "x": 2,
+      "y": 1,
+      "note": "0 = release, 1-127 = hold."
+    },
+    "footswitch": {
+      "label": "Footswitch",
+      "cc": 27,
+      "widget": "momentary",
+      "kind": "momentary",
+      "min": 0,
+      "max": 127,
+      "section": "pedals",
+      "x": 3,
+      "y": 1,
+      "note": "0 = release, 1-127 = press. The pedal also SENDS this when you step on it."
+    },
+    "expression": {
+      "label": "Expression",
+      "cc": 100,
+      "widget": "slider",
+      "kind": "continuous",
+      "min": 0,
+      "max": 127,
+      "section": "utility",
+      "x": 0,
+      "y": 2,
+      "note": "0 = heel, 127 = toe. Which KNOB the toe/heel endpoints drive is per-preset (factory: Mix); CC100 does not pick the target."
+    },
+    "bank": {
+      "label": "Bank",
+      "cc": 0,
+      "widget": "stepped",
+      "kind": "stepped",
+      "min": 0,
+      "max": 2,
+      "labels": {
+        "0": "Bank 1",
+        "1": "Bank 2",
+        "2": "Bank 3"
+      },
+      "display": {
+        "domain": "raw",
+        "curve": "lin"
+      },
+      "section": "utility",
+      "x": 1,
+      "y": 2,
+      "risk": "medium",
+      "note": "Send bank BEFORE each PC. Manual enumeration prints '3=Bank 3' vs range 0-2 — value for bank 3 is a phase-0 test."
+    },
+    "pc_help": {
+      "label": "PC 0-299 via chat/automation (CC0 bank first). PC0=Favorite, PC127=Manual.",
+      "widget": "label",
+      "section": "utility",
+      "x": 2,
+      "y": 2,
+      "w": 3
+    }
+  }
+}

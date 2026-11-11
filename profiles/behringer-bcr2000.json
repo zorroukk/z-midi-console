@@ -1,0 +1,650 @@
+{
+  "channel": 0,
+  "controls": {
+    "box1": {
+      "cc": 105,
+      "kind": "momentary",
+      "label": "Box 1",
+      "risk": "low",
+      "section": "button_box",
+      "widget": "momentary",
+      "x": 0,
+      "y": 0
+    },
+    "box2": {
+      "cc": 106,
+      "kind": "momentary",
+      "label": "Box 2",
+      "risk": "low",
+      "section": "button_box",
+      "widget": "momentary",
+      "x": 1,
+      "y": 0
+    },
+    "box3": {
+      "cc": 107,
+      "kind": "momentary",
+      "label": "Box 3",
+      "risk": "low",
+      "section": "button_box",
+      "widget": "momentary",
+      "x": 0,
+      "y": 1
+    },
+    "box4": {
+      "cc": 108,
+      "kind": "momentary",
+      "label": "Box 4",
+      "risk": "low",
+      "section": "button_box",
+      "widget": "momentary",
+      "x": 1,
+      "y": 1
+    },
+    "btn1-1": {
+      "cc": 65,
+      "kind": "momentary",
+      "label": "Btn 1",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 0,
+      "y": 0
+    },
+    "btn1-2": {
+      "cc": 66,
+      "kind": "momentary",
+      "label": "Btn 2",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 1,
+      "y": 0
+    },
+    "btn1-3": {
+      "cc": 67,
+      "kind": "momentary",
+      "label": "Btn 3",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 2,
+      "y": 0
+    },
+    "btn1-4": {
+      "cc": 68,
+      "kind": "momentary",
+      "label": "Btn 4",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 3,
+      "y": 0
+    },
+    "btn1-5": {
+      "cc": 69,
+      "kind": "momentary",
+      "label": "Btn 5",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 4,
+      "y": 0
+    },
+    "btn1-6": {
+      "cc": 70,
+      "kind": "momentary",
+      "label": "Btn 6",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 5,
+      "y": 0
+    },
+    "btn1-7": {
+      "cc": 71,
+      "kind": "momentary",
+      "label": "Btn 7",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 6,
+      "y": 0
+    },
+    "btn1-8": {
+      "cc": 72,
+      "kind": "momentary",
+      "label": "Btn 8",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 7,
+      "y": 0
+    },
+    "btn2-1": {
+      "cc": 73,
+      "kind": "momentary",
+      "label": "Btn 9",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 0,
+      "y": 1
+    },
+    "btn2-2": {
+      "cc": 74,
+      "kind": "momentary",
+      "label": "Btn 10",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 1,
+      "y": 1
+    },
+    "btn2-3": {
+      "cc": 75,
+      "kind": "momentary",
+      "label": "Btn 11",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 2,
+      "y": 1
+    },
+    "btn2-4": {
+      "cc": 76,
+      "kind": "momentary",
+      "label": "Btn 12",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 3,
+      "y": 1
+    },
+    "btn2-5": {
+      "cc": 77,
+      "kind": "momentary",
+      "label": "Btn 13",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 4,
+      "y": 1
+    },
+    "btn2-6": {
+      "cc": 78,
+      "kind": "momentary",
+      "label": "Btn 14",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 5,
+      "y": 1
+    },
+    "btn2-7": {
+      "cc": 79,
+      "kind": "momentary",
+      "label": "Btn 15",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 6,
+      "y": 1
+    },
+    "btn2-8": {
+      "cc": 80,
+      "kind": "momentary",
+      "label": "Btn 16",
+      "risk": "low",
+      "section": "button_rows",
+      "widget": "momentary",
+      "x": 7,
+      "y": 1
+    },
+    "enc1-1": {
+      "cc": 81,
+      "label": "Enc 1",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 0,
+      "y": 0
+    },
+    "enc1-2": {
+      "cc": 82,
+      "label": "Enc 2",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 1,
+      "y": 0
+    },
+    "enc1-3": {
+      "cc": 83,
+      "label": "Enc 3",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 2,
+      "y": 0
+    },
+    "enc1-4": {
+      "cc": 84,
+      "label": "Enc 4",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 3,
+      "y": 0
+    },
+    "enc1-5": {
+      "cc": 85,
+      "label": "Enc 5",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 4,
+      "y": 0
+    },
+    "enc1-6": {
+      "cc": 86,
+      "label": "Enc 6",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 5,
+      "y": 0
+    },
+    "enc1-7": {
+      "cc": 87,
+      "label": "Enc 7",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 6,
+      "y": 0
+    },
+    "enc1-8": {
+      "cc": 88,
+      "label": "Enc 8",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 7,
+      "y": 0
+    },
+    "enc2-1": {
+      "cc": 89,
+      "label": "Enc 9",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 0,
+      "y": 1
+    },
+    "enc2-2": {
+      "cc": 90,
+      "label": "Enc 10",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 1,
+      "y": 1
+    },
+    "enc2-3": {
+      "cc": 91,
+      "label": "Enc 11",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 2,
+      "y": 1
+    },
+    "enc2-4": {
+      "cc": 92,
+      "label": "Enc 12",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 3,
+      "y": 1
+    },
+    "enc2-5": {
+      "cc": 93,
+      "label": "Enc 13",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 4,
+      "y": 1
+    },
+    "enc2-6": {
+      "cc": 94,
+      "label": "Enc 14",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 5,
+      "y": 1
+    },
+    "enc2-7": {
+      "cc": 95,
+      "label": "Enc 15",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 6,
+      "y": 1
+    },
+    "enc2-8": {
+      "cc": 96,
+      "label": "Enc 16",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 7,
+      "y": 1
+    },
+    "enc3-1": {
+      "cc": 97,
+      "label": "Enc 17",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 0,
+      "y": 2
+    },
+    "enc3-2": {
+      "cc": 98,
+      "label": "Enc 18",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 1,
+      "y": 2
+    },
+    "enc3-3": {
+      "cc": 99,
+      "label": "Enc 19",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 2,
+      "y": 2
+    },
+    "enc3-4": {
+      "cc": 100,
+      "label": "Enc 20",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 3,
+      "y": 2
+    },
+    "enc3-5": {
+      "cc": 101,
+      "label": "Enc 21",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 4,
+      "y": 2
+    },
+    "enc3-6": {
+      "cc": 102,
+      "label": "Enc 22",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 5,
+      "y": 2
+    },
+    "enc3-7": {
+      "cc": 103,
+      "label": "Enc 23",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 6,
+      "y": 2
+    },
+    "enc3-8": {
+      "cc": 104,
+      "label": "Enc 24",
+      "risk": "low",
+      "section": "encoder_rows",
+      "widget": "knob",
+      "x": 7,
+      "y": 2
+    },
+    "grp-note": {
+      "label": "Encoder-group + preset keys send Program Change ch 11 - not CC-bindable",
+      "section": "notes",
+      "w": 4,
+      "widget": "label",
+      "x": 0,
+      "y": 0
+    },
+    "pe1-push": {
+      "cc": 33,
+      "kind": "momentary",
+      "label": "Enc 1 push",
+      "risk": "low",
+      "section": "push_buttons",
+      "widget": "momentary",
+      "x": 0,
+      "y": 0
+    },
+    "pe1-turn": {
+      "cc": 1,
+      "label": "Enc 1 turn",
+      "risk": "low",
+      "section": "push_encoders",
+      "widget": "knob",
+      "x": 0,
+      "y": 0
+    },
+    "pe2-push": {
+      "cc": 34,
+      "kind": "momentary",
+      "label": "Enc 2 push",
+      "risk": "low",
+      "section": "push_buttons",
+      "widget": "momentary",
+      "x": 1,
+      "y": 0
+    },
+    "pe2-turn": {
+      "cc": 2,
+      "label": "Enc 2 turn",
+      "risk": "low",
+      "section": "push_encoders",
+      "widget": "knob",
+      "x": 1,
+      "y": 0
+    },
+    "pe3-push": {
+      "cc": 35,
+      "kind": "momentary",
+      "label": "Enc 3 push",
+      "risk": "low",
+      "section": "push_buttons",
+      "widget": "momentary",
+      "x": 2,
+      "y": 0
+    },
+    "pe3-turn": {
+      "cc": 3,
+      "label": "Enc 3 turn",
+      "risk": "low",
+      "section": "push_encoders",
+      "widget": "knob",
+      "x": 2,
+      "y": 0
+    },
+    "pe4-push": {
+      "cc": 36,
+      "kind": "momentary",
+      "label": "Enc 4 push",
+      "risk": "low",
+      "section": "push_buttons",
+      "widget": "momentary",
+      "x": 3,
+      "y": 0
+    },
+    "pe4-turn": {
+      "cc": 4,
+      "label": "Enc 4 turn",
+      "risk": "low",
+      "section": "push_encoders",
+      "widget": "knob",
+      "x": 3,
+      "y": 0
+    },
+    "pe5-push": {
+      "cc": 37,
+      "kind": "momentary",
+      "label": "Enc 5 push",
+      "risk": "low",
+      "section": "push_buttons",
+      "widget": "momentary",
+      "x": 4,
+      "y": 0
+    },
+    "pe5-turn": {
+      "cc": 5,
+      "label": "Enc 5 turn",
+      "risk": "low",
+      "section": "push_encoders",
+      "widget": "knob",
+      "x": 4,
+      "y": 0
+    },
+    "pe6-push": {
+      "cc": 38,
+      "kind": "momentary",
+      "label": "Enc 6 push",
+      "risk": "low",
+      "section": "push_buttons",
+      "widget": "momentary",
+      "x": 5,
+      "y": 0
+    },
+    "pe6-turn": {
+      "cc": 6,
+      "label": "Enc 6 turn",
+      "risk": "low",
+      "section": "push_encoders",
+      "widget": "knob",
+      "x": 5,
+      "y": 0
+    },
+    "pe7-push": {
+      "cc": 39,
+      "kind": "momentary",
+      "label": "Enc 7 push",
+      "risk": "low",
+      "section": "push_buttons",
+      "widget": "momentary",
+      "x": 6,
+      "y": 0
+    },
+    "pe7-turn": {
+      "cc": 7,
+      "label": "Enc 7 turn",
+      "risk": "low",
+      "section": "push_encoders",
+      "widget": "knob",
+      "x": 6,
+      "y": 0
+    },
+    "pe8-push": {
+      "cc": 40,
+      "kind": "momentary",
+      "label": "Enc 8 push",
+      "risk": "low",
+      "section": "push_buttons",
+      "widget": "momentary",
+      "x": 7,
+      "y": 0
+    },
+    "pe8-turn": {
+      "cc": 8,
+      "label": "Enc 8 turn",
+      "risk": "low",
+      "section": "push_encoders",
+      "widget": "knob",
+      "x": 7,
+      "y": 0
+    }
+  },
+  "device": "Behringer BCR2000",
+  "evidence": {
+    "authority": "manufacturer-sheet + community-code cross-check",
+    "lineage": "CC numbers transcribed from both authorities; nothing reverse-engineered",
+    "source": "Behringer BCR2000 preset sheets (factory preset 1 'Only Controllers, CC 1-110, all on MIDI Ch.1') cross-checked against Mixxx's Behringer-BCR2000-preset-scripts.js constants (push groups start 0x01, button offset 0x20, button rows 0x41, encoder rows 0x51, button box 0x69) - the two sources agree exactly",
+    "url": "https://images.thomann.de/pics/prod/168768_preset.pdf + https://github.com/mixxxdj/mixxx/blob/master/res/controllers/Behringer-BCR2000-preset-scripts.js",
+    "verified_on": "2026-11-10"
+  },
+  "firmware_basis": "factory preset 1 (Only Controllers)",
+  "match": {
+    "name_contains": "BCR"
+  },
+  "notes": [
+    "Assumes factory preset 1: recall it with the PRESET keys (top-right) or a factory reset. If your preset differs, twist a control here and use passive-learn / rebind - the console follows YOUR wire, not this sheet.",
+    "The 8 PUSH ENCODERS (top-left) are the unique knobs: TURN sends absolute CC 1-8, the built-in PUSH button sends CC 33-40. Both are mapped here as a knob + its momentary directly below.",
+    "Factory preset 1 encoders are ABSOLUTE CC (0-127 position), not relative. In EDIT mode they can be set Relative 1/2/3 or 14-bit - then the console shows deltas; re-learn if you do.",
+    "ENCODER GROUPS: the 24 rotaries are grouped in 6s by COLUMNS (group 1 = encoders 1-2, 9-10, 17-18 ... group 4 = 7-8, 15-16, 23-24). The group-select keys send Program Change on ch 11 - not CC-bindable, so they are a label here.",
+    "Buttons default to Toggle On (press=127, press again=0; release ignored). Mixxx recommends Toggle Off (release=0): hold EDIT, press a button, set MODE encoder to toFF, EXIT, Store twice. Momentary cards show both edges either way.",
+    "The 4-digit LED display and the LED rings are device-side feedback - the console does not write them (does_not_claim).",
+    "Footswitch jacks default to Bank Select CC 0-3 on ch 1 - not mapped (add via rebind if you use them).",
+    "If the friend's 'CONTROL 2000' is actually the BCF2000 (the fader version): the 8 motorized faders use the same CC 1-8 scheme, so this profile maps them too - copy it and rename the knobs to faders."
+  ],
+  "profile_id": "behringer-bcr2000",
+  "schema_version": 1,
+  "scope": {
+    "does_not_claim": [
+      "led_ring_feedback_writes",
+      "four_digit_display_writes",
+      "encoder_group_key_midi",
+      "footswitch_controls",
+      "relative_mode",
+      "bcf2000_faders"
+    ],
+    "supports": [
+      "documented_live_midi_cc"
+    ]
+  },
+  "sections": {
+    "button_box": {
+      "label": "Button box",
+      "order": 1,
+      "row": 1
+    },
+    "button_rows": {
+      "label": "Button rows",
+      "order": 2,
+      "row": 0
+    },
+    "encoder_rows": {
+      "label": "Encoder rows (24)",
+      "order": 0,
+      "row": 1
+    },
+    "notes": {
+      "label": "Notes",
+      "order": 0,
+      "row": 2
+    },
+    "push_buttons": {
+      "label": "Push encoders (press)",
+      "order": 1,
+      "row": 0
+    },
+    "push_encoders": {
+      "label": "Push encoders (turn)",
+      "order": 0,
+      "row": 0
+    }
+  }
+}
