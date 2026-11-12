@@ -661,9 +661,11 @@ def test_rpc_handler_redacts_text_and_log_before_the_model_sees_them():
                       "log": [{"role": "user", "text": f"earlier I pasted {secret}"}]}, "s1")
     _await_event(ctx, out["job"])
     kw = llm.kwargs
-    body = kw["input"][0]["text"] + str(kw.get("instructions", "")) + chat_engine.build_system_prompt(SUMMARY)
+    assert kw is not None, "the model was never called"
+    typed = kw["input"][0]["text"]
+    body = typed + str(kw.get("instructions", "")) + chat_engine.build_system_prompt(SUMMARY)
     assert secret not in body, "a raw secret reached the model input — the boundary redactor did not run"
-    assert secret not in str(kw["input"][0]["text"]), "the typed turn shipped unredacted"
+    assert secret not in typed, "the typed turn shipped unredacted"
     # the log is a second channel: it must be masked too, not just the fresh text
     assert secret not in body, "the conversation log shipped a secret the text channel had masked"
 

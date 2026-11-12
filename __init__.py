@@ -519,7 +519,7 @@ def _redact_outbound(text: str) -> str:
     this guards is silently shipping unredacted text off the machine.
     """
     try:
-        from agent.redact import redact_sensitive_text
+        from agent.redact import redact_sensitive_text  # type: ignore[import-not-found]
     except ImportError as exc:
         raise RuntimeError(
             f"redactor unavailable ({exc.__class__.__name__}) — refusing to send unredacted text") from exc
