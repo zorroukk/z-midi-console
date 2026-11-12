@@ -1,10 +1,10 @@
 name: z-midi-console
-version: 0.1.0
+version: 0.2.0
 description: "Universal MIDI control-surface builder: render any USB/MIDI CC device as live on-screen controls, learn bindings by twisting real knobs, drive it from chat or automation (CC rides, note loops, .mid export). Windows winmm via ctypes, zero Python dependencies."
 author: nicho
 license: MIT
 kind: backend
-requires_hermes: ">=0.23"
+requires_hermes: ">=0.23.1"
 provides_tools:
   - midi_devices
   - midi_status
@@ -17,4 +17,4 @@ config_schema:
   sendlog:
     type: boolean
     default: true
-    description: "Append every sent MIDI event to the plugin's own audit log (sendlog.jsonl under %LOCALAPPDATA%/z-midi-console/)."
+    description: "Append every sent MIDI event to the plugin's own audit log (sendlog.jsonl under <hermes home>/plugin-data/z-midi-console/)."

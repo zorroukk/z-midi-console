@@ -100,9 +100,85 @@ _WIN_RESERVED = ({"con", "prn", "aux", "nul"}
                  | {f"lpt{i}" for i in range(1, 10)})
 
 
-def data_dir() -> Path:
+def hermes_home() -> Path:
+    """The ACTIVE PROFILE's Hermes home (catalog review, PR 153102).
+
+    The store used to hang off %LOCALAPPDATA% directly, which put every profile
+    of every Hermes install on ONE shared folder. Hermes' own convention is
+    ``<hermes home>/plugin-data/<plugin>/``; resolving the home per call keeps
+    it following the active profile (``plugin_data_dir`` resolves fresh for the
+    same reason). Standalone test runs have no Hermes on sys.path, so the
+    fallback mirrors ``hermes_constants.get_hermes_home``: HERMES_HOME env, then
+    %LOCALAPPDATA%/hermes on Windows, then ~/.hermes.
+    """
+    try:
+        from hermes_constants import get_hermes_home  # type: ignore[import-not-found]
+        return Path(get_hermes_home())
+    except Exception:  # noqa: BLE001 — no Hermes on the path (standalone battery)
+        pass
+    env = str(os.environ.get("HERMES_HOME") or "").strip()
+    if env:
+        return Path(env).expanduser()
+    if os.name == "nt":
+        local = str(os.environ.get("LOCALAPPDATA") or "").strip()
+        if local:
+            return Path(local) / "hermes"
+    return Path.home() / ".hermes"
+
+
+def _legacy_data_dir() -> Path:
+    """The pre-review home: %LOCALAPPDATA%/z-midi-console (no profile scope)."""
     base = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
     return Path(base) / "z-midi-console"
+
+
+_MIGRATED = False
+
+
+def _migrate_legacy(root: Path) -> None:
+    """Copy the old shared store into the profile home ONCE, never deleting it.
+
+    Copy-not-move on purpose: the old tree stays so a rollback (or a second
+    Hermes profile that has not migrated yet) cannot lose a device profile.
+    Only runs when the new home has nothing of its own.
+    """
+    global _MIGRATED
+    if _MIGRATED:
+        return
+    _MIGRATED = True
+    try:
+        old = _legacy_data_dir()
+        if not old.is_dir() or old == root:
+            return
+        if any(root.iterdir()):
+            return
+        import shutil
+        for entry in old.iterdir():
+            dest = root / entry.name
+            if dest.exists():
+                continue
+            if entry.is_dir():
+                shutil.copytree(entry, dest)
+            else:
+                shutil.copy2(entry, dest)
+    except OSError:
+        pass  # a failed migration degrades to an empty store, never a crash
+
+
+def data_dir() -> Path:
+    """Durable store: ``<hermes home>/plugin-data/z-midi-console/``.
+
+    Prefers Hermes' sanctioned ``plugins.plugin_storage.plugin_data_dir`` and
+    computes the same layout itself when that module is not importable.
+    """
+    try:
+        from plugins.plugin_storage import plugin_data_dir  # type: ignore[import-not-found]
+        root = Path(plugin_data_dir("z-midi-console"))
+    except Exception:  # noqa: BLE001 — standalone: same layout, computed locally
+        root = hermes_home() / "plugin-data" / "z-midi-console"
+        root.mkdir(parents=True, exist_ok=True)
+    _migrate_legacy(root)
+    return root
 
 
 def user_profiles_dir() -> Path:

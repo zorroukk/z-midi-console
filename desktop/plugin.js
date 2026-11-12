@@ -848,18 +848,23 @@ function Surface() {
   }, [])
   const [menu, setMenu] = useState(null)          // open dropdown: 'edit' | 'settings' | null
   const [manage, setManage] = useState(null)      // SETTINGS manage card: 'profiles' | 'devices' | null
-  // Chat box (owner feature 2026-11-09): natural-language preset editing via a
-  // LOCAL model lane. The LLM only proposes ops (/ask whitelists them); this
-  // half holds all the power — labels resolve against the live doc and every
-  // op runs through mutate's choke point, so draft/undo/hot-apply laws apply.
+  // Chat box (owner feature 2026-11-09): natural-language preset editing. The
+  // model only proposes ops (chat_engine whitelists them); this half holds all
+  // the power — labels resolve against the live doc and every op runs through
+  // mutate's choke point, so draft/undo/hot-apply laws apply.
+  //
+  // Catalog review (PR 153102): the box no longer lists model lanes or holds a
+  // model pick. It calls its own Python half over a plugin RPC; Hermes keeps the
+  // provider credentials and routes through the `midi_chat` auxiliary slot,
+  // which follows the app's current model until the user pins one under
+  // Settings → Models → Auxiliary. The proposal comes back as a session event
+  // keyed by job id, so chatJobs maps the pending asks.
   const [chat, setChat] = useState(false)
   const [chatLog, setChatLog] = useState([])      // {role:'user'|'say'|'done'|'err', text}
   const [chatIn, setChatIn] = useState('')
   const [chatBusy, setChatBusy] = useState(false)
-  const [chatLanes, setChatLanes] = useState([])  // [{lane, slug, models:[id], current, dead}] — /llm/models mirrors the app's model selector
-  const [chatSel, setChatSel] = useState(null)    // {slug, id} — persisted api.storage 'chat_model'
   const [chatEffort, setChatEffort] = useState('auto')  // 'auto'|'fast'|'balanced'|'thoughtful' — persisted 'chat_effort'
-  const lanesWakeTimer = useRef(null)             // cold-host wake: one auto-retry when lanes came back empty
+  const chatJobs = useRef({})                     // job id -> resolve (filled by the chat.answered session event)
   const [mEdit, setMEdit] = useState(null)        // {kind:'rename'|'copy'|'dev', pid, val} inline input
   const [mArm, setMArm] = useState(null)          // preset id armed for delete (second click deletes)
   const menuWrapRef = useRef(null)                // wraps EDIT + SETTINGS so outside clicks close them
@@ -1686,42 +1691,42 @@ function Surface() {
       matrix_running: !!(st && st.matrix && st.matrix.running),
     }
   }
-  const loadLanes = async () => {
-    const r = await api.rest('/llm/models').catch(() => null)
-    const lanes = (r && r.ok && Array.isArray(r.lanes)) ? r.lanes : []
-    const currentModel = (r && r.ok && typeof r.current_model === 'string' && r.current_model) ? r.current_model : null  // A9 (): what the app's own selector is on right now
-    setChatLanes(lanes)
-    // Owner law 2026-11-10: lanes mirror the app's model selector — keyed by
-    // provider slug, individual to each user's Hermes environment.
-    const alive = lanes.filter(l => !l.dead && l.models.length && l.drivable !== false)
-    if (!alive.length) {
-      // Cold host / cold CATALOG (): the backend spawns on the
-      // first pane call and races it (502 -> empty), AND Hermes warms cold
-      // provider catalogs in the background — rows arrive with an empty
-      // models array. The old retry fired only on lanes.length===0, so the
-      // warm-in case cancelled its own advertised auto-retry and left an
-      // empty picker until a manual press. Retry whenever NOTHING is
-      // selectable, keep the user's current pick meanwhile.
-      if (!lanesWakeTimer.current) lanesWakeTimer.current = setTimeout(() => { lanesWakeTimer.current = null; loadLanes() }, 4000)
-      return chatSel
+  // Chat transport (catalog review, PR 153102): ONE plugin RPC out, ONE session
+  // event back. An RPC call holds this client's request lane until the handler
+  // returns, so the handler answers with a job id at once and pushes the
+  // proposal onto the session's event stream — awaited here, keyed by that job.
+  // The old 25 s IPC ceiling is gone (nothing stays open), so the wall clock is
+  // the model's own: 150 s before the box calls it stalled.
+  useEffect(() => {
+    const off = host.onEvent('plugin.z-midi-console.chat.answered', (ev) => {
+      const p = (ev && ev.payload) || {}
+      const wait = chatJobs.current[p.job]
+      if (!wait) return
+      delete chatJobs.current[p.job]
+      clearTimeout(wait.timer)
+      wait.resolve(p)
+    })
+    return off
+  }, [])
+  const chatAsk = async (payload) => {
+    const sid = host.state.focusedSessionId.get()
+    if (!sid) {
+      return { ok: false, error: 'the chat box answers through the focused chat session — focus one and press Send again' }
     }
-    if (lanesWakeTimer.current) { clearTimeout(lanesWakeTimer.current); lanesWakeTimer.current = null }
-    try { const ef = api.storage.get('chat_effort'); if (ef) setChatEffort(String(ef)) } catch (e) {}
-    let keep = chatSel && alive.find(l => l.slug === chatSel.slug && l.models.includes(chatSel.id))
-    let storedId = null
-    if (!keep) { try { const s = api.storage.get('chat_model'); keep = s && alive.find(l => l.slug === s.slug && l.models.includes(s.id)); if (keep) storedId = s.id } catch (e) {} }
-    if (!keep) keep = alive.find(l => l.current) || alive[0]  // default = the model the app itself is using
-    if (!keep) { setChatSel(null); return null }
-    // the refresh used to force keep.models[0] — every lane
-    // poll silently MOVED the user off the model they picked (and off the
-    // saved one). Keep the selected model whenever its lane survives.
-    const sel = { slug: keep.slug,
-      id: (chatSel && keep.slug === chatSel.slug && keep.models.includes(chatSel.id)) ? chatSel.id
-        : (storedId && keep.models.includes(storedId)) ? storedId
-          : (keep.current && currentModel && keep.models.includes(currentModel)) ? currentModel
-            : keep.models[0] }  // A9: with no user pick, default to the model the APP itself is using — not lane alphabetical first
-    setChatSel(sel)
-    return sel  // sendChat read the STATE var right after await — always null in that closure
+    let sent = null
+    try {
+      sent = await host.request('plugin.z-midi-console.chat.ask', Object.assign({ session_id: sid }, payload))
+    } catch (e) {
+      return { ok: false, error: 'the console backend refused the ask: ' + ((e && e.message) || 'internal error') }
+    }
+    if (!sent || !sent.job) return { ok: false, error: 'the console backend sent no job id back' }
+    return await new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        delete chatJobs.current[sent.job]
+        resolve({ ok: false, error: 'the model took over 150 s — it may be cold-loading or queued behind another job; press Send again once it is up' })
+      }, 150000)
+      chatJobs.current[sent.job] = { resolve, timer }
+    })
   }
   const applyChatOps = async (ops, pidAtSend) => {
     clearTimeout(saveTimerRef.current)  // a pending wheel paint used to overwrite a chat color op 350 ms later
@@ -1828,8 +1833,6 @@ function Surface() {
     const text = chatIn.trim()
     if (!text || chatBusy) return
     if (!prof) { setStatus('chat: activate a preset first'); return }
-    const sel = chatSel || await loadLanes()  // use the RETURNED selection — the state var is null in this closure
-    if (!sel) { setChatLog(l => [...l, { role: 'err', text: 'no model lane is answering — every lane in the picker is offline; start the host (LM Studio / Ollama / gateway) or check the app\'s model selector, then press retry' }]); return }
     const summary = chatSummary()
     const pidAtSend = (((chatLiveDoc && chatLiveDoc()) || prof) || {}).profile_id || null  // A6: ops bind to the doc the model actually saw
     // Follow-up turns need the console's truth, not only the model's promise:
@@ -1839,11 +1842,10 @@ function Surface() {
       text: (m.role === 'done' || m.role === 'err' ? 'console result: ' : '') + m.text,
     }))
     setChatIn(''); setChatLog(l => [...l, { role: 'user', text }]); setChatBusy(true)
-    const r = await api.rest('/ask', { method: 'POST', body: { text, model: sel, effort: chatEffort, summary, log: logForCtx } }).catch(() => null)
+    const r = await chatAsk({ text, effort: chatEffort, summary, log: logForCtx })
     if (!r) { setChatBusy(false); setChatLog(l => [...l, { role: 'err', text: 'chat backend unreachable' }]); return }
     if (!r.ok) { setChatBusy(false); setChatLog(l => [...l, { role: 'err', text: r.error || 'refused' }]); return }
-    try { api.storage.set('chat_model', sel) } catch (e) {}
-    if (r.say) setChatLog(l => [...l, { role: 'say', text: r.say }])
+    if (r.say) setChatLog(l => [...l, { role: 'say', text: r.say + (r.model ? `  ·  ${r.model}` : '') }])
     if ((r.dropped || []).length) setChatLog(l => [...l, { role: 'err', text: `dropped ${r.dropped.length} unknown op(s): ${r.dropped.join(' · ').slice(0, 160)}` }])
     if ((r.ops || []).length) {
       // Abort guard: a throwing op must never leave the box stuck in busy —
@@ -2661,8 +2663,7 @@ function Surface() {
         // CHAT (owner feature 2026-11-09): SAME size bold caps, immediately
         // RIGHT of SETTINGS (owner placement ruling). Opens a card, not a
         // menu — outside-click close would eat text mid-typing.
-        jsx('button', { onClick: () => { if (!chat) loadLanes(); else if (lanesWakeTimer.current) { clearTimeout(lanesWakeTimer.current); lanesWakeTimer.current = null }  // low-pri (): closing the box cancels its own cold-wake retry — no background lane polls after close
-          setChat(!chat) }, 'data-tip': 'Ask — describe a change in plain English ("paint the filter knob gentle purple", "ramp wave 0→100% over 5s", "save this as a new preset called Freakytime"). The local model only proposes; this console applies and reports every op', style: { ...bigBtnS, border: `1px solid ${chat ? 'var(--ui-accent)' : 'var(--ui-stroke-secondary)'}`, color: chat ? 'var(--ui-accent)' : 'var(--ui-text-primary)' }, children: 'CHAT' }),
+        jsx('button', { onClick: () => setChat(!chat), 'data-tip': 'Ask — describe a change in plain English ("paint the filter knob gentle purple", "ramp wave 0→100% over 5s", "save this as a new preset called Freakytime"). The model only proposes; this console applies and reports every op', style: { ...bigBtnS, border: `1px solid ${chat ? 'var(--ui-accent)' : 'var(--ui-stroke-secondary)'}`, color: chat ? 'var(--ui-accent)' : 'var(--ui-text-primary)' }, children: 'CHAT' }),
         // Create (owner ask 2026-11-09; alignment ruling): lives INSIDE the
         // menu group, same size / bold caps style as EDIT and SETTINGS.
         edit ? (newSec != null
@@ -2742,13 +2743,15 @@ function Surface() {
         jsx('span', { style: { fontSize: 13, fontWeight: 800, letterSpacing: '0.06em' }, children: rainbow('ASK', 13) }),
         jsx('span', { style: { fontSize: 11, color: '#9aa7b4' }, children: 'describe a change in plain English — the model proposes, the console applies' }),
         jsx('span', { style: { flex: 1 } }),
-        chatLanes.length ? jsx('select', { value: chatSel ? chatSel.slug + '|' + chatSel.id : '', onChange: (e) => { const s = String(e.target.value).split('|'); setChatSel({ slug: s[0], id: s.slice(1).join('|') }) }, 'data-tip': "Which model answers you — the SAME list as the app's bottom-right model selector: your Hermes providers (local lanes, cloud, subscriptions), individual to this install. Nothing crosses the open internet unencrypted", style: { fontSize: 12, padding: '4px 6px', background: '#1b2129', color: '#e6edf3', border: '1px solid #3d444d', borderRadius: 6, maxWidth: 300 }, children: chatLanes.map(l => jsx('optgroup', { label: l.lane + (l.current ? '  ● current' : '') + (l.dead ? '  (offline)' : '') + (l.drivable === false ? '  (transport this chat cannot drive)' : ''), disabled: !!l.dead || l.drivable === false, children: l.models.map(m => jsx('option', { value: l.slug + '|' + m, children: m }, 'cm-' + l.slug + '-' + m)) }, 'og-' + l.slug)) }) : jsx('span', { style: { fontSize: 12, color: '#9aa7b4' }, children: 'no model lane found — press retry' }),
-        jsx('button', { onClick: loadLanes, 'data-tip': "Re-scan your model lanes — the same list the app's model selector shows", style: { fontSize: 11, fontWeight: 700, padding: '3px 8px', border: '1px solid #3d444d', background: 'transparent', color: '#e6edf3', borderRadius: 6, cursor: 'pointer' }, children: 'retry' }),
+        // Model routing (catalog review, PR 153102): the box no longer picks a lane —
+        // Hermes holds the credentials and routes the ask through its own auxiliary
+        // slot, which follows the app's current model until the user pins another.
+        jsx('span', { 'data-tip': "Which model answers: Hermes keeps the provider keys and runs this box through its own auxiliary slot, so it follows whatever model the app is using right now. Pin a dedicated one under Settings \u2192 Models \u2192 Auxiliary \u2192 'MIDI Console chat' (reasoning effort lives there too)", style: { fontSize: 11, color: '#9aa7b4', maxWidth: 360 }, children: 'model: your current Hermes model \u00b7 change it in Settings \u2192 Models \u2192 Auxiliary' }),
         // Effort knob (owner ask 2026-11-10): thinking models spend the reply
         // budget on hidden reasoning first — auto = lane default; fast pins it
         // low/off; thoughtful raises it (and the reply cap) and runs slower.
         jsx('select', { value: chatEffort, onChange: (e) => { setChatEffort(e.target.value); try { api.storage.set('chat_effort', e.target.value) } catch (er) {} }, 'data-tip': 'How hard the model thinks before answering. auto = the model\'s own default · fast = pin thinking low/off (snappier, a bit dumber) · balanced = medium thinking budget · thoughtful = high thinking + bigger reply room (slowest, best at multi-part asks). Small max_tokens can make thinking models return EMPTY — this knob is why auto exists', style: { fontSize: 12, padding: '4px 6px', background: '#1b2129', color: '#e6edf3', border: '1px solid #3d444d', borderRadius: 6 }, children: [['auto', 'effort: auto'], ['fast', 'effort: fast'], ['balanced', 'effort: balanced'], ['thoughtful', 'effort: thoughtful']].map(([v, l]) => jsx('option', { value: v, children: l }, 'ce-' + v)) }),
-        jsx('button', { onClick: () => { if (lanesWakeTimer.current) { clearTimeout(lanesWakeTimer.current); lanesWakeTimer.current = null } setChat(false) }, 'data-tip': 'Close the chat box', style: { fontSize: 11, fontWeight: 700, padding: '3px 8px', border: '1px solid #3d444d', background: 'transparent', color: '#e6edf3', borderRadius: 6, cursor: 'pointer' }, children: '× close' }),
+        jsx('button', { onClick: () => setChat(false), 'data-tip': 'Close the chat box', style: { fontSize: 11, fontWeight: 700, padding: '3px 8px', border: '1px solid #3d444d', background: 'transparent', color: '#e6edf3', borderRadius: 6, cursor: 'pointer' }, children: '\u00d7 close' }),
       ] }),
       jsxs('div', { ref: (el) => { if (el) el.scrollTop = el.scrollHeight }, style: { maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }, children: [
         chatLog.length ? null : jsx('span', { style: { fontSize: 12, color: '#9aa7b4' }, children: 'Try: “make the filter knob gentle purple” · “ramp wave 0→100% over 5 seconds” · “once timbre passes 70%, swing resonance back and forth” · “organize my categories by amount of knobs” · “save this as a new preset called Freakytime”' }),

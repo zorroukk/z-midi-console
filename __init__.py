@@ -6,9 +6,12 @@ SAME module instance (same process) so exactly one port owner exists.
 from __future__ import annotations
 
 import base64
+import contextvars
 import json
+import threading
+import uuid
 
-from . import automation, midi_core, profile_store
+from . import automation, chat_engine, midi_core, profile_store
 
 TOOLSET = "midi"
 
@@ -485,6 +488,73 @@ def _control_handler(control=None, value=None, **_kwargs) -> str:
         return _err(str(exc))
 
 
+# ---- chat box: plugin RPC (catalog review, PR 153102) -----------------------
+# The pane used to POST its chat text to a REST route that resolved the user's
+# provider credentials itself (api_key, subscription/OAuth headers) and drove
+# the transport. Hermes' rule is that a plugin never holds those credentials,
+# so the chat is now a plugin RPC method: the Desktop pane calls
+# `plugin.z-midi-console.chat.ask`, Hermes keeps the keys and picks the
+# transport, and the model is the `midi_chat` auxiliary slot the user can pin
+# under Settings -> Models -> Auxiliary (unpinned it follows their active model,
+# which is what the old in-box picker effectively resolved to anyway).
+#
+# The handler answers with a job id AT ONCE: an RPC call holds the caller's
+# request lane until it returns — a cold local model would stall that client's
+# interrupts and approvals with it. The proposal arrives as the session event
+# `plugin.z-midi-console.chat.answered` carrying the same job id.
+_CHAT_SLOTS = threading.BoundedSemaphore(2)  # same in-flight cap the old /ask route used
+
+
+def _make_chat_ask(ctx):
+    """Build the ``chat.ask`` RPC handler over this plugin's ``ctx``.
+
+    A factory rather than a bare function: the handler needs ``ctx.llm`` and
+    ``ctx.emit_to_session``, and the test battery drives it with a fake ctx.
+    """
+
+    def chat_ask(params, *, session_id, **kwargs):
+        """Serve one chat proposal: {job} back at once, result on the session stream."""
+        p = params or {}
+        if not session_id:
+            raise ValueError("chat.ask needs a session_id — focus a chat session and press Send again")
+        text = str(p.get("text") or "").strip()[:4000]
+        if not text:
+            raise ValueError("nothing to ask")
+        summary = p.get("summary")
+        if not isinstance(summary, dict) or not isinstance(summary.get("controls"), list):
+            raise ValueError("pane must send the profile summary (controls)")
+        log, effort = p.get("log"), str(p.get("effort") or "auto")
+        try:
+            # Redact at the boundary: this text leaves the machine. force=True keeps
+            # the mask on even when the operator turned security.redact_secrets off.
+            from agent.redact import redact_sensitive_text
+            text = redact_sensitive_text(text, force=True)
+        except Exception:  # noqa: BLE001 — no agent.redact (standalone): send as typed
+            pass
+        job = uuid.uuid4().hex
+
+        def run():
+            try:
+                out = chat_engine.run_proposal(ctx.llm, text=text, summary=summary, log=log, effort=effort)
+            except Exception as exc:  # noqa: BLE001 — a lane failure is data, never a crash
+                out = {"ok": False, "error": f"{exc.__class__.__name__}: {str(exc)[:220]}"}
+            finally:
+                _CHAT_SLOTS.release()
+            ctx.emit_to_session(session_id, "chat.answered", dict(out, job=job))
+
+        if not _CHAT_SLOTS.acquire(blocking=False):
+            raise RuntimeError("chat lane busy (2 asks already running) — retry in a moment")
+        try:
+            # copy_context: the thread keeps the call's profile scope, which ctx.llm reads.
+            threading.Thread(target=contextvars.copy_context().run, args=(run,), daemon=True).start()
+        except Exception:
+            _CHAT_SLOTS.release()  # run() never started, so it never releases
+            raise
+        return {"job": job}
+
+    return chat_ask
+
+
 def register(ctx) -> None:
     try:
         # sendlog is declared in plugin.yaml config_schema — wire it (regression review).
@@ -620,3 +690,19 @@ def register(ctx) -> None:
         },
         handler=_profile_handler,
     )
+
+    # ---- chat box: auxiliary slot + plugin RPC (catalog review, PR 153102) ----
+    # The task IS the route: Hermes resolves provider/model/auth for it, and the
+    # pane cannot pick a different one. Unpinned it defaults to provider "auto",
+    # i.e. whatever model the user is talking to right now — the same thing the
+    # old in-box picker resolved to. Pinning it under Settings -> Models ->
+    # Auxiliary (listed as "MIDI Console chat") gives a dedicated chat model.
+    ctx.register_auxiliary_task(
+        "midi_chat",
+        display_name="MIDI Console chat",
+        description="Turn a plain-English sound-design request into whitelisted "
+                    "Z's MIDI Console ops (color, rename, move, set, modulation "
+                    "lanes). Follows your active model until you pin one here.",
+        defaults={"timeout": 90},
+    )
+    ctx.register_rpc("chat.ask", _make_chat_ask(ctx))
