@@ -637,7 +637,22 @@ check("chat.ask RPC: sessionless asks refuse by name", test_rpc_handler_refuses_
 check("chat.ask RPC: empty text / bad summary refuse", test_rpc_handler_refuses_a_bad_summary_and_empty_text)
 check("chat.ask RPC: third concurrent ask refuses, slots recover", test_rpc_handler_busy_cap_refuses_the_third_ask)
 check("dashboard half holds no provider credentials, no personal ports", test_dashboard_half_holds_no_credentials)
+def test_manifests_agree_on_one_version():
+    """plugin.yaml is the manifest the loader and the catalog read; the desktop
+    manifest carries its own copy of the version for the pane. They drifted once
+    (plugin.yaml went 0.2.0 for the RPC work, the pane still announced 0.1.0)."""
+    import json as _json
+    import re as _re
+    yml = (_ROOT / "plugin.yaml").read_text(encoding="utf-8")
+    man = _json.loads((_ROOT / "dashboard" / "manifest.json").read_text(encoding="utf-8"))
+    ver = _re.search(r"^version:\s*\"?([0-9][^\"\s#]*)\"?", yml, _re.M).group(1)
+    assert str(man["version"]) == ver, f"dashboard/manifest.json says {man['version']!r}, plugin.yaml says {ver!r}"
+    floor = _re.search(r'requires_hermes:\s*"([^"]+)"', yml).group(1)
+    assert floor == ">=0.23.1", f"the RPC/aux seam needs 0.23.1, manifest says {floor!r}"
+
+
 check("store lives in the profile home", test_store_lives_in_the_profile_home)
+check("plugin.yaml and dashboard/manifest.json agree on version + floor", test_manifests_agree_on_one_version)
 check("legacy machine-wide store migrates once, copy-not-move", test_legacy_store_migrates_once_and_is_never_deleted)
 check("pane context/ambiguity/matrix/busy contracts; save_as collision refuses", test_pane_chat_contracts_and_save_collision)
 

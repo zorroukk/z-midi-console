@@ -3,7 +3,7 @@
   "label": "MIDI Console",
   "description": "Universal MIDI control-surface builder: live on-screen controls for any CC device, learn bindings by twisting knobs, software mod matrix, .mid export",
   "icon": "Sliders",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "tab": { "path": "/midi-console", "position": "end", "hidden": true },
   "api": "plugin_api.py"
 }
