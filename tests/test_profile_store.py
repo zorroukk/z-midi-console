@@ -16,6 +16,7 @@ sys.path.insert(0, str(_ROOT / "dashboard"))
 # Redirect the user tier BEFORE importing the store (data_dir reads env per call).
 _TMP = tempfile.mkdtemp(prefix="mssc-test-")
 os.environ["LOCALAPPDATA"] = _TMP
+os.environ["HERMES_HOME"] = _TMP  # the user tier is profile-scoped now (PR 153102)
 
 import profile_store  # noqa: E402
 

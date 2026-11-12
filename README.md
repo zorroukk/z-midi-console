@@ -40,7 +40,7 @@ Plug a synth in, pick its port, connect: every knob, slider and toggle appears o
 - **Software modulation matrix** — four lane kinds, one small vocabulary: **lfo** (sine/tri/saw/shuffle-random S&H, own rate + phase per lane), **move** (one-shot envelope: ramp a CC from a to b over N seconds), **when** (fire when a source crosses a level) and **watch** (fire the moment a knob is twisted) — triggers run ramps or named-range oscillations (center/amp).
 - **Wire remap** — any control can declare `invert` or an output sub-range (`out_min/out_max`) for backwards or bipolar parameters; the surface keeps speaking one friendly 0–127 domain and only the wire gets remapped.
 - **Record & export** — hit Record, ride the knobs / play notes (hardware or on-screen), stop, and get a Standard MIDI File any DAW imports.
-- **Ask (chat box)** — a CHAT button beside SETTINGS talks to whichever model lane you pick: the picker mirrors Hermes' own model selector, so local lanes (LM Studio / Ollama / gateway) AND cloud providers or subscriptions you have configured appear — individual to your install. The guard is "nothing crosses the open internet unencrypted": https anywhere, plain http only on loopback/LAN/Tailscale. Your preset summary travels with the ask — that is how the model knows your controls.
+- **Ask (chat box)** — a CHAT button beside SETTINGS turns plain English into proposed ops, on **your Hermes model**: the same one the app is answering with. Want a different one for this box alone? Pin it under **Settings → Models → Auxiliary → MIDI Console chat**. The plugin never holds your API key, subscription token or endpoint — it asks Hermes to make the call. Your preset summary travels with the ask — that is how the model knows your controls. **What leaves your machine when you press Send:** the text you typed and the preset summary (control names, CC numbers, current values, matrix lanes). Nothing else — no preset files, no send log, no MIDI traffic.
 - **Agent tools** — the seven tools listed above; every REST route the pane uses mirrors one of them.
 
 ## Zero setup
@@ -71,9 +71,9 @@ Restart Hermes (or let the plugin host pick it up), then open the **MIDI Console
 
 ## Architecture & tests
 
-Backend (`midi_core.py`) owns the truth: MIDI buses, profile store, matrix engine, recorder. The desktop pane (`desktop/plugin.js`) is a dumb renderer over its REST API; every REST route mirrors an agent tool. Profiles are two-tier (bundled factory + user overrides), validated refuse-closed — a junk document is named and refused, never silently clamped.
+Backend (`midi_core.py`) owns the truth: MIDI buses, profile store, matrix engine, recorder. The desktop pane (`desktop/plugin.js`) is a dumb renderer over its REST API; every REST route mirrors an agent tool. Profiles are two-tier (bundled factory + user overrides), validated refuse-closed — a junk document is named and refused, never silently clamped. Your presets, settings and send log live in the **Hermes profile** that runs the plugin — `<hermes home>/plugin-data/z-midi-console/` — so two profiles never share one store. (A pre-0.3 machine-wide store at `%LOCALAPPDATA%\z-midi-console` is copied in once on first launch and left where it is.)
 
-Eight standalone test batteries, stdlib-only, throwaway `LOCALAPPDATA` (no real state touched): `python tests/test_rinse.py` etc. The plugin validates the exact way the Hermes plugin catalog requires: `hermes plugins validate .` passes (two acknowledged warnings: two `hermes_cli` private-core imports behind the chat box's model-lane resolver, each guarded with a fallback).
+Eight standalone test batteries, stdlib-only, throwaway `HERMES_HOME` (no real state touched): `python tests/test_rinse.py` etc. The plugin validates the exact way the Hermes plugin catalog requires: `hermes plugins validate .` passes with **no warnings** — the plugin half touches no Hermes private core, and the desktop half stays inside the published pane SDK.
 
 ## Known limits
 

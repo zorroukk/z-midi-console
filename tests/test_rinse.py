@@ -16,6 +16,7 @@ sys.path.insert(0, str(_ROOT))
 
 _TMP = tempfile.mkdtemp(prefix="mssc-rinse-")
 os.environ["LOCALAPPDATA"] = _TMP
+os.environ["HERMES_HOME"] = _TMP  # the user tier is profile-scoped now (PR 153102)
 
 import profile_store  # noqa: E402
 import midi_core  # noqa: E402

@@ -22,7 +22,9 @@ sys.path.insert(0, str(_ROOT / "dashboard"))
 
 _TMP = tempfile.mkdtemp(prefix="mssc-ask-")
 os.environ["LOCALAPPDATA"] = _TMP
+os.environ["HERMES_HOME"] = _TMP  # data_dir() is profile-scoped now (PR 153102): pin the home too
 
+import chat_engine  # noqa: E402
 import plugin_api  # noqa: E402
 import profile_store  # noqa: E402
 
@@ -70,15 +72,6 @@ def test_extract():
     assert plugin_api._extract_json('{"note":"first"}\n' + json.dumps(want)) == {"note": "first"}
     assert plugin_api._extract_json('```json\n' + json.dumps(want) + '\n``` trailing {noise}') == want
     assert plugin_api._extract_json('{"say":"a } brace and \\\"quote\\\"","ops":[]}') == {"say": 'a } brace and "quote"', "ops": []}
-
-
-def test_reply_text():
-    proposal = '{"say":"ok","ops":[]}'
-    assert plugin_api._reply_text({"output_text": proposal}, True) == proposal
-    assert plugin_api._reply_text({"output": [{"content": [{"type": "output_text", "text": proposal}]}]}, True) == proposal
-    assert plugin_api._reply_text({"choices": [{"message": {"content": [{"type": "text", "text": proposal}]}}]}, False) == proposal
-    assert plugin_api._reply_text({"message": {"content": proposal}}, False) == proposal
-    assert plugin_api._reply_text({"choices": [{"message": {"content": []}}]}, False) == ""
 
 
 def test_mirrors():
@@ -162,240 +155,6 @@ _spec = _ilu.find_spec("hermes_cli")
 if _spec and _spec.origin:
     sys.path.insert(0, str(Path(_spec.origin).resolve().parent.parent))
 
-def test_ask_guards():
-    r = _run(plugin_api.post_ask(req({"text": "", "model": {"base": "http://127.0.0.1:1/v1", "id": "m"}, "summary": SUMMARY})))
-    assert r == {"ok": False, "error": "nothing to ask"}, r
-    # Guard law (owner override 2026-11-10): cloud lanes are IN — the rule is
-    # 'no PLAINTEXT over the open internet'. https anywhere passes; http only
-    # loopback/LAN/Tailscale.
-    r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"base": "http://evil.example/v1", "id": "m"}, "summary": SUMMARY})))
-    assert not r["ok"] and "unencrypted" in r["error"], r  # plaintext remote refused before any request
-    # userinfo-URL bypass — "http://127.0.0.1:***@host"
-    # passed the prefix check but urlsplit/urllib sent the profile to HOST.
-    for sneaky in ("http://127.0.0.1:***@evil.example/v1",
-                   "http://evil.example:8080/v1"):
-        r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"base": sneaky, "id": "m"}, "summary": SUMMARY})))
-        assert not r["ok"] and "unencrypted" in r["error"], (sneaky, r)
-    r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"base": "http://127.0.0.1:1/v1", "id": ""}, "summary": SUMMARY})))
-    assert not r["ok"] and "model" in r["error"]  # empty model id refused
-    r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"base": "http://127.0.0.1:1/v1", "id": "m"}, "summary": {"no_controls": 1}})))
-    assert not r["ok"] and "summary" in r["error"]
-    # dead local lane -> named unreachable, never a crash
-    r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"base": "http://127.0.0.1:1/v1", "id": "m"}, "summary": SUMMARY})))
-    assert not r["ok"] and "unreachable" in r["error"], r
-    # slug path (owner law 2026-11-10: chat box mirrors the app's model
-    # selector): an unknown slug must name the resolution failure, never 500.
-    r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"slug": "no-such-lane-xyz", "id": "m"}, "summary": SUMMARY})))
-    assert not r["ok"] and "could not be resolved" in r["error"], r
-    lanes = plugin_api.get_llm_models()
-    assert lanes["ok"] and isinstance(lanes["lanes"], list)  # sandbox: offline lanes simply absent
-
-
-def test_ask_slug_transport():
-    # Owner law 2026-11-10: a picked slug resolves through Hermes' own runtime
-    # resolver; the ask must honour the resolved transport (chat_completions
-    # vs Responses API), carry the resolved key, and keep the lane guard on
-    # the RESOLVED base (defence in depth).
-    import hermes_cli.runtime_provider as rp
-    orig_resolver, orig_http, orig_sse = rp.resolve_runtime_provider, plugin_api._http_json, plugin_api._http_sse_json
-    cap = {}
-    def fake_rt(*, requested=None, target_model=None, **kw):
-        assert requested == "fakelane"
-        return {"base_url": "http://127.0.0.1:65001/v1", "api_mode": "codex_responses", "api_key": "sekret"}
-    def fake_http(url, payload=None, timeout=8.0, headers=None):
-        cap["url"], cap["body"], cap["headers"] = url, payload, headers
-        content = '{"ops": [], "say": "done via responses"}'
-        if url.endswith("/responses"):
-            return {"output_text": content}
-        return {"choices": [{"message": {"content": content}}]}
-    rp.resolve_runtime_provider = fake_rt
-    plugin_api._http_json = fake_http
-    try:
-        r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"slug": "fakelane", "id": "gpt-x"},
-                                          "effort": "thoughtful", "summary": SUMMARY})))
-        assert r["ok"] and r.get("say") == "done via responses", r
-        assert cap["url"].endswith("/responses"), cap["url"]
-        assert cap["headers"] == {"Authorization": "Bearer sekret"}, cap["headers"]
-        assert cap["body"]["instructions"] and cap["body"]["input"][-1]["role"] == "user", cap["body"]
-        # ChatGPT/Codex subscription endpoint contract: requests are ephemeral.
-        # The live lane returns HTTP 400 "Store must be set to false" without it.
-        assert cap["body"]["store"] is False, cap["body"]
-        assert cap["body"]["reasoning"] == {"effort": "high"}, cap["body"]
-        assert cap["body"]["max_output_tokens"] == 1400, cap["body"]
-        # the Responses API gets NO temperature (gpt-5 family
-        # 400s on anything but its default)
-        assert "temperature" not in cap["body"], cap["body"]
-        # extra_headers + request_overrides FROM THE RESOLVER
-        # must ride (Codex identity headers, proxy auth, custom body params)
-        rp.resolve_runtime_provider = lambda **kw: {
-            "base_url": "http://127.0.0.1:65001/v1", "api_mode": "chat_completions",
-            "api_key": "k", "extra_headers": {"x-scx-identity": "1", "x-account": "a1"},
-            "request_overrides": {"service_tier": "fast"}}
-        cap.clear()
-        r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"slug": "fakelane", "id": "gpt-x"},
-                                          "summary": SUMMARY})))
-        assert r["ok"], r
-        assert cap["headers"].get("x-scx-identity") == "1" and cap["headers"].get("Authorization") == "Bearer k", cap["headers"]
-        assert cap["body"].get("service_tier") == "fast", cap["body"]
-        # A7 (): the SDK's extra_body MERGES into the
-        # JSON body — the ask must spread it, never send a literal
-        # "extra_body" property that lanes ignore (or 400 on).
-        rp.resolve_runtime_provider = lambda **kw: {
-            "base_url": "http://127.0.0.1:65001/v1", "api_mode": "chat_completions",
-            "api_key": "k", "request_overrides": {"extra_body": {"prediction": {"content": "x"}}}}
-        cap.clear()
-        r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"slug": "fakelane", "id": "gpt-x"},
-                                          "summary": SUMMARY})))
-        assert r["ok"], r
-        assert cap["body"].get("prediction") == {"content": "x"}, cap["body"]
-        assert "extra_body" not in cap["body"], cap["body"]
-        # The ChatGPT/Codex subscription endpoint is Responses SSE-only.
-        rp.resolve_runtime_provider = lambda **kw: {
-            "provider": "openai-codex", "base_url": "https://chatgpt.com/backend-api/codex",
-            "api_mode": "codex_responses", "api_key": "oauth"}
-        def fake_sse(url, payload=None, timeout=8.0, headers=None):
-            cap["url"], cap["body"], cap["headers"] = url, payload, headers
-            return {"output_text": '{"ops": [], "say": "subscription works"}'}
-        plugin_api._http_sse_json = fake_sse
-        cap.clear()
-        r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"slug": "openai-codex", "id": "gpt-x"},
-                                          "summary": SUMMARY})))
-        assert r["ok"] and r["say"] == "subscription works", r
-        assert cap["body"]["store"] is False and cap["body"]["stream"] is True, cap["body"]
-        # a CALLABLE token provider (Azure Entra class) must
-        # refuse by name — str()-ing it used to send "Bearer <function …>"
-        rp.resolve_runtime_provider = lambda **kw: {
-            "base_url": "https://example.azure.com/v1", "api_mode": "chat_completions",
-            "api_key": (lambda: "tok")}
-        r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"slug": "fakelane", "id": "gpt-x"},
-                                          "summary": SUMMARY})))
-        assert not r["ok"] and "token provider" in r["error"], r
-        # un-driveable transport -> named refusal, no bytes sent
-        rp.resolve_runtime_provider = lambda **kw: {"base_url": "http://127.0.0.1:65001/v1",
-                                                    "api_mode": "codex_app_server", "api_key": ""}
-        r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"slug": "fakelane", "id": "gpt-x"},
-                                          "summary": SUMMARY})))
-        assert not r["ok"] and "codex_app_server" in r["error"], r
-        # resolved base still passes the exfil guard (plaintext remote refused)
-        rp.resolve_runtime_provider = lambda **kw: {"base_url": "http://evil.example/v1",
-                                                    "api_mode": "chat_completions", "api_key": "k"}
-        r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"slug": "fakelane", "id": "gpt-x"},
-                                          "summary": SUMMARY})))
-        assert not r["ok"] and "unencrypted" in r["error"], r
-    finally:
-        rp.resolve_runtime_provider = orig_resolver
-        plugin_api._http_json = orig_http
-        plugin_api._http_sse_json = orig_sse
-
-
-def test_redirect_guard_strips_auth():
-    # A2 (): urllib followed 301/302 blindly and
-    # re-sent Authorization to the new host; the redirect target was never
-    # re-checked against the guard law. Every hop must re-validate, and
-    # credentials must NOT cross origins.
-    import http.server
-    seen = {}
-    cap_srv = None
-    cap_port_holder = {}
-
-    class Cap(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            seen["auth"] = self.headers.get("Authorization")
-            self.send_response(200)
-            self.send_header("content-type", "application/json")
-            self.end_headers()
-            self.wfile.write(b'{"ok": 1}')
-
-        def log_message(self, *args, **kwargs):
-            pass
-
-    class Redir(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            target = (f"http://127.0.0.1:{cap_port_holder['p']}/x" if self.path == "/hop"
-                      else "http://example.invalid/x")
-            self.send_response(302)
-            self.send_header("Location", target)
-            self.end_headers()
-
-        def log_message(self, *args, **kwargs):
-            pass
-
-    cap_srv = http.server.HTTPServer(("127.0.0.1", 0), Cap)
-    red_srv = http.server.HTTPServer(("127.0.0.1", 0), Redir)
-    cap_port_holder["p"] = cap_srv.server_address[1]
-    red_port = red_srv.server_address[1]
-    threads = [threading.Thread(target=s.serve_forever, daemon=True) for s in (cap_srv, red_srv)]
-    for t in threads:
-        t.start()
-    try:
-        # cross-origin hop (different port = different origin): auth stripped
-        out = plugin_api._http_json(f"http://127.0.0.1:{red_port}/hop",
-                                    headers={"Authorization": "Bearer SECRET-A2"})
-        assert out.get("ok") == 1, out
-        assert seen.get("auth") is None, f"credential followed a cross-origin redirect: {seen}"
-        # guard-violating target (plaintext public host): refuse, don't follow
-        try:
-            plugin_api._http_json(f"http://127.0.0.1:{red_port}/evil")
-            raise AssertionError("guard-violating redirect must refuse")
-        except plugin_api._urlreq.HTTPError as e:
-            assert "guard law" in str(e), e
-    finally:
-        cap_srv.shutdown()
-        red_srv.shutdown()
-        cap_srv.server_close()
-        red_srv.server_close()
-
-
-def test_picker_mirror_drivable_and_current_model():
-    # A9 (): built-in rows carry no api_mode —
-    # anthropic/bedrock sat selectable-by-default and only refused by name
-    # AFTER Send; and the pane could not see WHICH model the app is on
-    # (it defaulted to lane models[0]).
-    import hermes_cli.inventory as inv
-    orig_ctx, orig_build = inv.load_picker_context, inv.build_model_options_payload
-    ctx = SimpleNamespace(custom_providers=[{"provider_key": "jeff", "base_url": "http://127.0.0.1:65099/v1", "api_mode": "chat_completions"}], user_providers={})
-    inv.load_picker_context = lambda: ctx
-    inv.build_model_options_payload = lambda *a, **kw: {
-        "providers": [
-            {"slug": "anthropic", "name": "Anthropic", "is_current": False, "models": ["claude-x"]},
-            {"slug": "bedrock", "name": "Bedrock", "is_current": False, "models": ["b-x"]},
-            {"slug": "nous", "name": "Nous Portal", "is_current": False, "models": ["n-x"]},
-            {"slug": "jeff", "name": "Jeff", "is_current": True, "models": ["qwen-x"]},
-        ], "model": "qwen-x", "provider": "jeff"}
-    try:
-        r = plugin_api.get_llm_models()
-    finally:
-        inv.load_picker_context, inv.build_model_options_payload = orig_ctx, orig_build
-    assert r["ok"] and r["current_model"] == "qwen-x", r
-    by = {l["slug"]: l for l in r["lanes"]}
-    assert by["anthropic"]["drivable"] is False and by["bedrock"]["drivable"] is False, by
-    # unknown built-in stays drivable (most are OpenAI-style; /ask still
-    # refuses any real mismatch by name) — and config-known api_mode wins
-    assert by["nous"]["drivable"] is True and by["jeff"]["drivable"] is True, by
-    assert by["jeff"]["current"] is True, by["jeff"]
-
-
-def test_responses_sse_parser():
-    class FakeResponse:
-        def __enter__(self): return iter([
-            b'event: response.output_text.delta\n',
-            b'data: {"type":"response.output_text.delta","delta":"{\\"say\\":\\"ok\\","}\n',
-            b'data: {"type":"response.output_text.delta","delta":"\\"ops\\":[]}"}\n',
-            b'data: {"type":"response.completed","response":{"status":"completed"}}\n',
-        ])
-        def __exit__(self, *args): return False
-    orig = plugin_api._lane_opener
-    class FakeOpener:
-        def open(self, req, timeout=None):
-            return FakeResponse()
-    plugin_api._lane_opener = lambda: FakeOpener()  # A2 law: both transports go through the lane-guard opener now
-    try:
-        r = plugin_api._http_sse_json("https://example.test/responses", {"stream": True})
-        assert r == {"output_text": '{"say":"ok","ops":[]}'}, r
-    finally:
-        plugin_api._lane_opener = orig
-
-
 def test_chat_profile_lines():
     # the summary used to be a raw JSON dump CHAR-truncated
     # mid-record (Push = 9515 chars -> model got broken JSON hiding 35 of 85
@@ -423,115 +182,6 @@ def test_chat_profile_lines():
     assert "further entries exist" not in out2, "small profiles must not claim overflow"
     sys_txt = plugin_api._chat_system(small)
     assert "one line per control" in sys_txt and "- Wave (cc21)" in sys_txt  # rendered lines, not a raw dump
-
-
-def test_ask_effort():
-    # Effort knob (owner ask 2026-11-10): thinking models spend max_tokens on
-    # hidden reasoning BEFORE the answer. /ask must clamp effort to the known
-    # set and translate it per lane (reasoning_effort / ollama think).
-    cap = {}
-    orig = plugin_api._http_json
-    def fake(url, payload=None, timeout=8.0, headers=None):
-        cap["url"] = url
-        cap["body"] = payload
-        return {"choices": [{"message": {"content": '{"ops": [], "say": "ok"}'}}]}
-    plugin_api._http_json = fake
-    try:
-        base = "http://127.0.0.1:65001/v1"
-        for eff, want in (("fast", "low"), ("balanced", "medium"), ("thoughtful", "high")):
-            r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"base": base, "id": "m"},
-                                              "effort": eff, "summary": SUMMARY})))
-            assert r["ok"], r
-            assert cap["body"]["reasoning_effort"] == want, (eff, cap["body"])
-            assert cap["body"]["max_tokens"] == (1400 if eff == "thoughtful" else 900), cap["body"]
-        _run(plugin_api.post_ask(req({"text": "paint it", "model": {"base": base, "id": "m"},
-                                      "effort": "turbo", "summary": SUMMARY})))
-        assert "reasoning_effort" not in cap["body"], cap["body"]  # junk effort -> auto
-        _run(plugin_api.post_ask(req({"text": "paint it", "model": {"base": "http://127.0.0.1:65001/api",
-                                      "id": "m"}, "effort": "fast", "summary": SUMMARY})))
-        assert cap["body"].get("think") is False, cap["body"]  # ollama-native path
-        # The actual Hermes inventory/resolver shape is slug=ollama-local with
-        # an OpenAI-compatible /v1 base; it must still disable thinking.
-        import hermes_cli.runtime_provider as rp
-        orig_resolver = rp.resolve_runtime_provider
-        rp.resolve_runtime_provider = lambda **kw: {
-            "provider": "custom", "base_url": "http://127.0.0.1:11434/v1",
-            "api_mode": "chat_completions", "api_key": ""}
-        try:
-            r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"slug": "ollama-local", "id": "m"},
-                                              "effort": "fast", "summary": SUMMARY})))
-            assert r["ok"] and cap["body"].get("think") is False, (r, cap["body"])
-            assert cap["url"] == "http://127.0.0.1:11434/api/chat", cap["url"]
-            assert cap["body"]["stream"] is False and cap["body"]["format"]["required"] == ["say", "ops"], cap["body"]
-            assert cap["body"]["options"]["num_predict"] == 500, cap["body"]
-        finally:
-            rp.resolve_runtime_provider = orig_resolver
-    finally:
-        plugin_api._http_json = orig
-
-
-def test_empty_reply_names_thinking_budget():
-    orig = plugin_api._http_json
-    plugin_api._http_json = lambda *a, **kw: {"choices": [{"message": {"content": ""}}]}
-    try:
-        r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"base": "http://127.0.0.1:65001/v1", "id": "m"},
-                                          "effort": "balanced", "summary": SUMMARY})))
-        assert not r["ok"] and "effort: fast" in r["error"] and "thinking" in r["error"], r
-        assert "raw" not in r, r
-    finally:
-        plugin_api._http_json = orig
-
-
-def test_model_inventory_parallel_and_fallback():
-    import hermes_cli.inventory as inv
-    orig_ctx, orig_build, orig_http = inv.load_picker_context, inv.build_model_options_payload, plugin_api._http_json
-    ctx = SimpleNamespace(
-        custom_providers=[{"provider_key": f"cold-{i}", "base_url": f"http://127.0.0.1:{65010 + i}/v1"} for i in range(3)],
-        user_providers={},
-    )
-    lock = threading.Lock()
-    active = 0
-    max_active = 0
-
-    def fake_http(url, payload=None, timeout=8.0, headers=None):
-        nonlocal active, max_active
-        with lock:
-            active += 1
-            max_active = max(max_active, active)
-        time.sleep(0.05)
-        with lock:
-            active -= 1
-        # Also pin Ollama's native {models:[{name:...}]} catalog shape.
-        return {"models": [] if "65012" in url else [{"name": "local-model"}]}
-
-    inv.load_picker_context = lambda: ctx
-    inv.build_model_options_payload = lambda *a, **kw: {
-        "providers": [{"slug": f"cold-{i}", "name": f"Cold {i}", "models": []} for i in range(3)]}
-    plugin_api._http_json = fake_http
-    try:
-        r = plugin_api.get_llm_models()
-        assert max_active >= 2, f"cold probes ran serially (max_active={max_active})"
-        assert r["inventory"] is True and r["lanes"][0]["models"] == ["local-model"], r
-        assert r["lanes"][2]["dead"] is True, r
-    finally:
-        inv.load_picker_context, inv.build_model_options_payload, plugin_api._http_json = orig_ctx, orig_build, orig_http
-
-    # Legacy ports are reached only when importing/using Hermes inventory
-    # fails, and the cause must be surfaced for diagnosis.
-    orig_import, orig_lanes, orig_http = builtins.__import__, plugin_api._CHAT_LANES, plugin_api._http_json
-    def fail_inventory(name, *args, **kwargs):
-        if name == "hermes_cli":
-            raise ImportError("inventory unavailable")
-        return orig_import(name, *args, **kwargs)
-    builtins.__import__ = fail_inventory
-    plugin_api._CHAT_LANES = (("fallback", "http://127.0.0.1:65500/v1"),)
-    plugin_api._http_json = lambda *a, **kw: {"data": [{"id": "fallback-model"}]}
-    try:
-        r = plugin_api.get_llm_models()
-        assert r["inventory"] is False and r["inventory_error"] == "ImportError", r
-        assert r["lanes"][0]["models"] == ["fallback-model"], r
-    finally:
-        builtins.__import__, plugin_api._CHAT_LANES, plugin_api._http_json = orig_import, orig_lanes, orig_http
 
 
 def _chain_push_behaviour(pane):
@@ -643,8 +293,14 @@ def test_pane_chat_contracts_and_save_collision():
     assert "const aA = src === 'mic' ? bands('mic') : bands('out')" not in pane
     assert "pidAtSend && d0 && d0.profile_id !== pidAtSend" in pane   # ops bound to the summarized profile
     assert "dgen === deckGenRef.current" in pane                      # deck docs die on saves, not on every poll
-    # A9: the picker defaults to the model the app itself is using.
-    assert "keep.models.includes(currentModel)" in pane
+    # Chat transport (PR 153102): the pane calls its own Python half over a plugin
+    # RPC and awaits the answer as a session event — it never sees a credential,
+    # and the lane picker is gone (the aux slot in Settings is the picker now).
+    assert "host.request('plugin.z-midi-console.chat.ask'" in pane
+    assert "host.onEvent('plugin.z-midi-console.chat.answered'" in pane
+    assert "host.state.focusedSessionId.get()" in pane
+    assert "api.rest('/ask'" not in pane            # the credential-holding route is DEAD
+    assert "/llm/models" not in pane                # and so is the in-box lane mirror
     # (owner rulings 2026-11-10): workspace laws.
     assert "grabRef.current = { dx:" in pane                    # B5/B6: grab offset captured at pointerdown
     assert "rowsT[t.y] = rowsT[t.y] || []" in pane              # B5: commitMove lands the group as a SHAPE
@@ -695,18 +351,11 @@ def test_pane_chat_contracts_and_save_collision():
     assert "width: '100%', boxSizing: 'border-box', minWidth: 160" not in pane     # old fill-the-shared-cell law is DEAD
     # A live set under active modulation says why the value moves again.
     assert "chatMatrixTargets(d, cid)" in pane and "the next matrix tick may move it again" in pane
-    # Busy UX is disabled in the pane, while the backend's third concurrent ask
-    # refuses by name without sending bytes.
+    # Busy UX is disabled in the pane, while the backend's own concurrency cap
+    # refuses a third ask by name — test_rpc_handler_busy_cap_refuses_the_third_ask
+    # exercises that cap end to end now that it lives with the RPC handler.
     assert "disabled: chatBusy || !chatIn.trim()" in pane
-    assert plugin_api._CHAT_SEM.acquire(blocking=False)
-    assert plugin_api._CHAT_SEM.acquire(blocking=False)
-    try:
-        r = _run(plugin_api.post_ask(req({"text": "paint it", "model": {"base": "http://127.0.0.1:65001/v1", "id": "m"},
-                                          "summary": SUMMARY})))
-        assert not r["ok"] and "2 asks already running" in r["error"], r
-    finally:
-        plugin_api._CHAT_SEM.release()
-        plugin_api._CHAT_SEM.release()
+    assert "if (!text || chatBusy) return" in pane
 
     # save_as delegates to copy_profile, whose collision law is refusal rather
     # than overwrite. Exercise the actual store twice.
@@ -720,22 +369,269 @@ def test_pane_chat_contracts_and_save_collision():
 
 
 print("chat box battery")
+
+# ---- the host-owned chat lane (catalog review, PR 153102) -------------------
+# The transport law changed: the plugin no longer resolves the user's provider
+# credentials or speaks to a model lane itself. These batteries pin what is left
+# to us — the proposal gate — plus the two seams that replaced the transport:
+# ctx.llm on the `midi_chat` aux task, and the plugin RPC job/event handshake.
+
+import importlib as _il  # noqa: E402
+
+sys.path.insert(0, str(_ROOT.parent))
+PKG = _il.import_module(_ROOT.name)  # the agent half, for _make_chat_ask
+
+
+class FakeLlm:
+    """Stands in for ctx.llm: records the call, answers with a canned proposal."""
+
+    def __init__(self, parsed=None, text=None, boom=None):
+        self.parsed, self.text, self.boom, self.kwargs = parsed, text, boom, None
+
+    def complete_structured(self, **kw):
+        self.kwargs = kw
+        if self.boom:
+            raise self.boom
+        return SimpleNamespace(parsed=self.parsed, text=self.text,
+                               provider="fake-lane", model="fake/model-1")
+
+
+def test_run_proposal_routes_through_the_aux_task():
+    llm = FakeLlm(parsed={"say": "done", "ops": [{"op": "matrix", "action": "start"},
+                                                 {"op": "nonsense"}]})
+    out = chat_engine.run_proposal(llm, text="start the matrix", summary=SUMMARY, effort="fast")
+    kw = llm.kwargs
+    assert kw is not None, "run_proposal never reached the lane"
+    assert kw["task"] == "midi_chat", f"task={kw.get('task')!r} — the route must be OUR aux slot"
+    assert kw["json_schema"] == chat_engine.PROPOSAL_SCHEMA
+    assert kw["max_tokens"] == chat_engine.EFFORT_TOKENS["fast"]
+    assert kw["temperature"] == 0.1
+    assert "Cutoff" in kw["system_prompt"], "the profile summary must ride in the system prompt"
+    assert out["ok"] and out["ops"] == [{"op": "matrix", "action": "start"}]
+    assert out["dropped"] and "nonsense" in out["dropped"][0]
+    assert out["model"] == "fake/model-1", "the pane shows which lane actually answered"
+
+
+def test_run_proposal_effort_maps_and_clamps():
+    for want, effort in (("balanced", "auto"), ("balanced", "bogus"), ("thoughtful", "thoughtful")):
+        llm = FakeLlm(parsed={"say": "", "ops": []})
+        chat_engine.run_proposal(llm, text="x", summary=SUMMARY, effort=effort)
+        assert llm.kwargs is not None and llm.kwargs["max_tokens"] == chat_engine.EFFORT_TOKENS[want], f"{effort} -> {want}"
+
+
+def test_run_proposal_carries_the_conversation():
+    llm = FakeLlm(parsed={"say": "", "ops": []})
+    chat_engine.run_proposal(llm, text="no, the other one", summary=SUMMARY,
+                             log=[{"role": "user", "text": "paint cutoff purple"}] * 20)
+    kw = llm.kwargs
+    assert kw is not None, "run_proposal never reached the lane"
+    assert "CONVERSATION SO FAR" in kw["instructions"]
+    assert kw["instructions"].count("paint cutoff purple") <= 6, "log must stay bounded"
+
+
+def test_run_proposal_falls_back_to_extract_json():
+    llm = FakeLlm(parsed=None, text='prose first ```json\n{"say":"hi","ops":[{"op":"matrix","action":"stop"}]}\n``` tail')
+    out = chat_engine.run_proposal(llm, text="stop it", summary=SUMMARY)
+    assert out["ok"] and out["ops"] == [{"op": "matrix", "action": "stop"}]
+
+
+def test_run_proposal_unparseable_names_it():
+    llm = FakeLlm(parsed=None, text="I shall consider your request.")
+    out = chat_engine.run_proposal(llm, text="x", summary=SUMMARY)
+    assert not out["ok"] and "unparseable" in out["error"] and out["raw"]
+
+
+def test_run_proposal_refuses_a_bad_summary():
+    llm = FakeLlm(parsed={"say": "", "ops": []})
+    out = chat_engine.run_proposal(llm, text="x", summary={"controls": "not a list"})
+    assert not out["ok"] and llm.kwargs is None, "refuse BEFORE spending a model call"
+
+
+def test_run_proposal_lets_a_lane_failure_raise():
+    llm = FakeLlm(boom=RuntimeError("lane is down"))
+    try:
+        chat_engine.run_proposal(llm, text="x", summary=SUMMARY)
+        raise AssertionError("the lane failure was swallowed")
+    except RuntimeError as exc:
+        assert "lane is down" in str(exc)
+
+
+class FakeCtx:
+    def __init__(self, llm):
+        self.llm = llm
+        self.emitted = []
+
+    def emit_to_session(self, session_id, event, payload):
+        self.emitted.append((session_id, event, payload))
+
+
+def _call(ask_fn, params, session_id):
+    """The RPC contract answers with a JSON object; pyright cannot see that."""
+    out = ask_fn(params, session_id=session_id)
+    assert isinstance(out, dict)
+    return out
+
+def _await_event(ctx, job, timeout=5.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for sid, ev, payload in ctx.emitted:
+            if payload.get("job") == job:
+                return sid, ev, payload
+        time.sleep(0.02)
+    raise AssertionError(f"no chat.answered event for job {job}")
+
+
+def test_rpc_handler_answers_with_a_job_then_emits():
+    ctx = FakeCtx(FakeLlm(parsed={"say": "painted", "ops": [{"op": "matrix", "action": "start"}]}))
+    ask = PKG._make_chat_ask(ctx)
+    out = _call(ask, {"text": "start the matrix", "summary": SUMMARY}, session_id="sess-1")
+    assert isinstance(out, dict) and out.get("job"), f"handler must return a job id at once, got {out!r}"
+    sid, ev, payload = _await_event(ctx, out["job"])
+    assert sid == "sess-1" and ev == "chat.answered"
+    assert payload["ok"] and payload["ops"] == [{"op": "matrix", "action": "start"}]
+
+
+def test_rpc_handler_never_holds_the_lane():
+    # A slow model must not slow the RPC answer: the call returns while the
+    # model is still thinking (an RPC call holds the client's request lane).
+    class SlowLlm(FakeLlm):
+        def complete_structured(self, **kw):
+            time.sleep(0.6)
+            return super().complete_structured(**kw)
+    ctx = FakeCtx(SlowLlm(parsed={"say": "late", "ops": []}))
+    ask = PKG._make_chat_ask(ctx)
+    t0 = time.time()
+    out = _call(ask, {"text": "x", "summary": SUMMARY}, session_id="s")
+    assert time.time() - t0 < 0.3, "the handler blocked on the model"
+    _await_event(ctx, out["job"], timeout=5.0)
+
+
+def test_rpc_handler_lane_failure_is_data():
+    ctx = FakeCtx(FakeLlm(boom=RuntimeError("no credentials configured")))
+    ask = PKG._make_chat_ask(ctx)
+    out = _call(ask, {"text": "x", "summary": SUMMARY}, session_id="s")
+    _, _, payload = _await_event(ctx, out["job"])
+    assert not payload["ok"] and "no credentials configured" in payload["error"]
+
+
+def test_rpc_handler_refuses_without_a_session():
+    ctx = FakeCtx(FakeLlm(parsed={"say": "", "ops": []}))
+    ask = PKG._make_chat_ask(ctx)
+    for bad in (None, ""):
+        try:
+            _call(ask, {"text": "x", "summary": SUMMARY}, bad)
+            raise AssertionError("a sessionless ask was accepted")
+        except ValueError as exc:
+            assert "session_id" in str(exc)
+
+
+def test_rpc_handler_refuses_a_bad_summary_and_empty_text():
+    ctx = FakeCtx(FakeLlm(parsed={"say": "", "ops": []}))
+    ask = PKG._make_chat_ask(ctx)
+    for params in ({"text": "  ", "summary": SUMMARY}, {"text": "x", "summary": {}}):
+        try:
+            _call(ask, params, "s")
+            raise AssertionError(f"accepted {params}")
+        except ValueError:
+            pass
+
+
+def test_rpc_handler_busy_cap_refuses_the_third_ask():
+    # Two in flight (the old /ask cap) — the third refuses by name instead of
+    # queueing a worker nobody can cancel.
+    class BlockingLlm(FakeLlm):
+        def __init__(self):
+            super().__init__(parsed={"say": "", "ops": []})
+            self.entered, self.release = threading.Event(), threading.Event()
+
+        def complete_structured(self, **kw):
+            self.entered.set()
+            self.release.wait(timeout=5)
+            return super().complete_structured(**kw)
+    llm = BlockingLlm()
+    ctx = FakeCtx(llm)
+    ask = PKG._make_chat_ask(ctx)
+    j1 = _call(ask, {"text": "a", "summary": SUMMARY}, session_id="s")["job"]
+    assert llm.entered.wait(2), "first ask never reached the lane"
+    j2 = _call(ask, {"text": "b", "summary": SUMMARY}, session_id="s")["job"]
+    try:
+        ask({"text": "c", "summary": SUMMARY}, session_id="s")
+        raise AssertionError("a third ask was accepted while two ran")
+    except RuntimeError as exc:
+        assert "busy" in str(exc)
+    llm.release.set()
+    for job in (j1, j2):
+        _await_event(ctx, job)
+    _call(ask, {"text": "d", "summary": SUMMARY}, "s")  # slots recovered
+
+
+def test_dashboard_half_holds_no_credentials():
+    """The reviewer's rule, pinned as a regression guard.
+
+    A plugin must never hold the user's provider credentials. The dashboard half
+    used to import hermes_cli, take api_key/extra_headers and drive the
+    transport itself — including this machine's own model ports.
+    """
+    src = (_ROOT / "dashboard" / "plugin_api.py").read_text(encoding="utf-8")
+    for gone in ("resolve_runtime_provider", "hermes_cli", "extra_headers",
+                 "_CHAT_LANES", "127.0.0.1:1249", "127.0.0.1:11434", "127.0.0.1:8091",
+                 "api_key"):
+        assert gone not in src, f"{gone!r} is back in the dashboard half"
+    assert "from chat_engine import" in src, "the proposal gate stays shared with the RPC handler"
+
+
+def test_store_lives_in_the_profile_home():
+    """PR 153102: profiles must not share one machine-wide store."""
+    got = str(profile_store.data_dir()).replace("\\", "/").lower()
+    want = str(Path(_TMP) / "plugin-data" / "z-midi-console").replace("\\", "/").lower()
+    assert got == want, f"data_dir() escaped the pinned HERMES_HOME: {got!r} != {want!r}"
+
+
+def test_legacy_store_migrates_once_and_is_never_deleted():
+    old = Path(_TMP) / "z-midi-console"
+    (old / "profiles").mkdir(parents=True, exist_ok=True)
+    (old / "profiles" / "legacy.json").write_text('{"profile_id":"legacy"}', encoding="utf-8")
+    fresh = Path(_TMP) / "fresh-home"
+    fresh.mkdir(exist_ok=True)
+    os.environ["HERMES_HOME"] = str(fresh)
+    try:
+        profile_store._MIGRATED = False
+        new = profile_store.data_dir()
+        assert (new / "profiles" / "legacy.json").is_file(), "the old store did not follow the profile"
+        assert (old / "profiles" / "legacy.json").is_file(), "migration must COPY, never move"
+        profile_store._MIGRATED = False
+        (new / "marker").write_text("x", encoding="utf-8")
+        profile_store.data_dir()
+        assert (new / "marker").is_file(), "a populated new home must not be re-overwritten"
+    finally:
+        os.environ["HERMES_HOME"] = _TMP
+        profile_store._MIGRATED = False
+
+
 check("extract_json survives fences + prose", test_extract)
-check("reply text normalizes Responses + chat content blocks", test_reply_text)
 check("whitelists mirror the validator (kinds/curves/waves)", test_mirrors)
 check("op sanitizer: shapes, ranges, bool-rejects, unknown dropped", test_sanitize_ops)
 check("edge sanitizer: move/when/watch/then, no nesting, ranges", test_sanitize_edges)
 check("system prompt carries labels + rules", test_system_prompt)
-check("/ask guards: empty, plaintext-remote, dead lane, bad summary, unknown slug", test_ask_guards)
-check("/ask slug transport: resolver, responses API, key, headers/overrides, callable-token, guard", test_ask_slug_transport)
-check("Responses SSE transport assembles subscription text deltas", test_responses_sse_parser)
 check("chat profile lines: whole-record rendering, no mid-line truncation", test_chat_profile_lines)
-check("/ask effort knob: clamped, per-lane translation, max_tokens", test_ask_effort)
-check("empty model reply names the thinking-budget remedy", test_empty_reply_names_thinking_budget)
-check("model inventory probes cold lanes in parallel; fallback is named", test_model_inventory_parallel_and_fallback)
-check("redirects stay in the guard lane; credentials never cross origins", test_redirect_guard_strips_auth)
-check("picker mirror: non-chat built-ins unselectable; current model forwarded", test_picker_mirror_drivable_and_current_model)
+check("run_proposal routes through the midi_chat aux task", test_run_proposal_routes_through_the_aux_task)
+check("run_proposal effort maps to a reply budget and clamps junk", test_run_proposal_effort_maps_and_clamps)
+check("run_proposal carries a bounded conversation", test_run_proposal_carries_the_conversation)
+check("run_proposal falls back to extract_json", test_run_proposal_falls_back_to_extract_json)
+check("run_proposal names an unparseable reply", test_run_proposal_unparseable_names_it)
+check("run_proposal refuses a bad summary BEFORE spending a call", test_run_proposal_refuses_a_bad_summary)
+check("run_proposal lets a lane failure raise to the handler", test_run_proposal_lets_a_lane_failure_raise)
+check("chat.ask RPC: job id at once, proposal on the session stream", test_rpc_handler_answers_with_a_job_then_emits)
+check("chat.ask RPC: a slow model never holds the request lane", test_rpc_handler_never_holds_the_lane)
+check("chat.ask RPC: a lane failure arrives as data, not a crash", test_rpc_handler_lane_failure_is_data)
+check("chat.ask RPC: sessionless asks refuse by name", test_rpc_handler_refuses_without_a_session)
+check("chat.ask RPC: empty text / bad summary refuse", test_rpc_handler_refuses_a_bad_summary_and_empty_text)
+check("chat.ask RPC: third concurrent ask refuses, slots recover", test_rpc_handler_busy_cap_refuses_the_third_ask)
+check("dashboard half holds no provider credentials, no personal ports", test_dashboard_half_holds_no_credentials)
+check("store lives in the profile home", test_store_lives_in_the_profile_home)
+check("legacy machine-wide store migrates once, copy-not-move", test_legacy_store_migrates_once_and_is_never_deleted)
 check("pane context/ambiguity/matrix/busy contracts; save_as collision refuses", test_pane_chat_contracts_and_save_collision)
 
-print("FAILURES:", FAIL or "none")
-sys.exit(1 if FAIL else 0)
+if __name__ == "__main__":
+    print("FAILURES:", FAIL if FAIL else "none")
+    sys.exit(1 if FAIL else 0)
