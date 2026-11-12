@@ -620,8 +620,10 @@ def get_audio():
     import json as _json
     # Fallback law (review 2026-11-09): no LOCALAPPDATA (POSIX dev hosts) used to
     # make the path CWD-relative and read the wrong file. Same chain as data_dir().
-    # Catalog review (PR 153102): the base is now the ACTIVE PROFILE's Hermes home,
-    # so a second profile reads its own audio-strip, not the default profile's.
+    # Catalog review (PR 153102): the companion is looked up in the ACTIVE PROFILE's
+    # Hermes home first (a per-profile install), then the machine-wide install it
+    # has always used. audio-strip writes state.json beside its own code, so the
+    # candidate that exists is the one its loader was found in.
     hermes_root = profile_store.hermes_home()
     candidates = [hermes_root / "plugins" / "audio-strip" / "state.json"]
     base = os.environ.get("LOCALAPPDATA")
@@ -881,28 +883,3 @@ def profile_export(id: str = ""):
 
 # ---- chat box (owner feature 2026-11-09): natural-language preset editing. ----
 # The proposal engine — system prompt, JSON extraction, op whitelist — lives in
-# chat_engine.py, shared with the agent-side RPC handler and the test battery.
-#
-# What is GONE here (catalog review, PR 153102): the /ask and /llm/models routes
-# and the whole transport stack under them (provider resolution, lane guards,
-# SSE, cold-catalog probes, the personal fallback ports). A plugin must not hold
-# the user's provider credentials, so the pane now calls the plugin RPC
-# `plugin.z-midi-console.chat.ask`; that handler runs the proposal through
-# ctx.llm on the `midi_chat` auxiliary slot, and Hermes keeps the keys, picks the
-# transport and follows the model the user chose under Settings -> Models ->
-# Auxiliary. The names below stay as re-exports: the chat battery pins them and
-# the pane's op preview shares them.
-from chat_engine import (  # noqa: E402
-    CURVES as _CURVES_CHAT,
-    EDGE_KINDS as _EDGE_KINDS_CHAT,
-    HEX6 as _HEX6,
-    WAVES as _WAVES_CHAT,
-    build_system_prompt as _chat_system,
-    extract_json as _extract_json,
-    int_in as _int_in,
-    label as _label,
-    num_in as _num_in,
-    profile_lines as _chat_profile_lines,
-    sanitize_edge as _sanitize_edge,
-    sanitize_one as _sanitize_one,
-)

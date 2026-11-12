@@ -59,85 +59,87 @@ SUMMARY = {
 
 
 def test_extract():
-    assert plugin_api._extract_json('{"say":"x","ops":[]}') == {"say": "x", "ops": []}
-    assert plugin_api._extract_json('```json\n{"say":"x","ops":[]}\n```') == {"say": "x", "ops": []}
-    assert plugin_api._extract_json('Sure! {"say":"done","ops":[{"op":"matrix","action":"start"}]} hope that helps')["ops"][0]["action"] == "start"
-    assert plugin_api._extract_json('no json here') is None
-    assert plugin_api._extract_json('["array","not","object"]') is None
-    assert plugin_api._extract_json('{"broken":') is None
+    assert chat_engine.extract_json('{"say":"x","ops":[]}') == {"say": "x", "ops": []}
+    assert chat_engine.extract_json('```json\n{"say":"x","ops":[]}\n```') == {"say": "x", "ops": []}
+    got = chat_engine.extract_json('Sure! {"say":"done","ops":[{"op":"matrix","action":"start"}]} hope that helps')
+    assert got is not None and got["ops"][0]["action"] == "start"
+    assert chat_engine.extract_json('no json here') is None
+    assert chat_engine.extract_json('["array","not","object"]') is None
+    assert chat_engine.extract_json('{"broken":') is None
     # prose braces and multiple objects used to be joined by the
     # first-{ / last-} slice, hiding a later valid proposal.
     want = {"say": "done", "ops": []}
-    assert plugin_api._extract_json('Use {a label} here, then ' + json.dumps(want)) == want
-    assert plugin_api._extract_json('{"note":"first"}\n' + json.dumps(want)) == {"note": "first"}
-    assert plugin_api._extract_json('```json\n' + json.dumps(want) + '\n``` trailing {noise}') == want
-    assert plugin_api._extract_json('{"say":"a } brace and \\\"quote\\\"","ops":[]}') == {"say": 'a } brace and "quote"', "ops": []}
+    assert chat_engine.extract_json('Use {a label} here, then ' + json.dumps(want)) == want
+    assert chat_engine.extract_json('{"note":"first"}\n' + json.dumps(want)) == {"note": "first"}
+    assert chat_engine.extract_json('```json\n' + json.dumps(want) + '\n``` trailing {noise}') == want
+    assert chat_engine.extract_json('{"say":"a } brace and \\\"quote\\\"","ops":[]}') == {"say": 'a } brace and "quote"', "ops": []}
 
 
 def test_mirrors():
     # mirror law: the chat whitelist must not drift from the validator's law
-    assert plugin_api._EDGE_KINDS_CHAT == profile_store._EDGE_KINDS
-    assert plugin_api._CURVES_CHAT == profile_store.CURVES
-    assert plugin_api._WAVES_CHAT == profile_store.LFO_WAVES
+    assert chat_engine.EDGE_KINDS == profile_store._EDGE_KINDS
+    assert chat_engine.CURVES == profile_store.CURVES
+    assert chat_engine.WAVES == profile_store.LFO_WAVES
 
 
 def test_sanitize_ops():
-    ok = plugin_api._sanitize_one({"op": "color", "target": "section:Oscillator", "hex": "#AB12cd", "junk": 1})
+    ok = chat_engine.sanitize_one({"op": "color", "target": "section:Oscillator", "hex": "#AB12cd", "junk": 1})
     assert ok == {"op": "color", "target": "section:Oscillator", "hex": "#ab12cd"}, ok
-    assert plugin_api._sanitize_one({"op": "color", "target": "control:Cutoff", "hex": "purple"}) is None
-    assert plugin_api._sanitize_one({"op": "color", "target": "", "hex": "#ffffff"}) is None
-    assert plugin_api._sanitize_one({"op": "clear_color", "target": "control:Cutoff"}) == {"op": "clear_color", "target": "control:Cutoff"}
-    assert plugin_api._sanitize_one({"op": "rename", "kind": "section", "from": "Osc", "to": "OSC 1"}) is not None
-    assert plugin_api._sanitize_one({"op": "rename", "kind": "widget", "from": "a", "to": "b"}) is None
-    assert plugin_api._sanitize_one({"op": "move_section", "name": "Osc", "row": 0, "order": True}) is None  # bool rejected
-    assert plugin_api._sanitize_one({"op": "move_section", "name": "Osc", "row": 999, "order": 0}) is None     # out of band
-    assert plugin_api._sanitize_one({"op": "move_section", "name": "Osc", "row": "1", "order": "2"}) == {"op": "move_section", "name": "Osc", "row": 1, "order": 2}
-    assert plugin_api._sanitize_one({"op": "order_sections", "by": "vibes"}) is None
-    assert plugin_api._sanitize_one({"op": "style", "name": "Osc"}) is None  # style with no property = nothing to do
-    assert plugin_api._sanitize_one({"op": "style", "name": "Osc", "bold": True, "font_size": 60}) is None
-    assert plugin_api._sanitize_one({"op": "delete_everything"}) is None
-    assert plugin_api._sanitize_one("not a dict") is None
-    assert plugin_api._sanitize_one({"op": "invert", "label": "Cutoff", "on": "yes"}) is None  # bool only
+    assert chat_engine.sanitize_one({"op": "color", "target": "control:Cutoff", "hex": "purple"}) is None
+    assert chat_engine.sanitize_one({"op": "color", "target": "", "hex": "#ffffff"}) is None
+    assert chat_engine.sanitize_one({"op": "clear_color", "target": "control:Cutoff"}) == {"op": "clear_color", "target": "control:Cutoff"}
+    assert chat_engine.sanitize_one({"op": "rename", "kind": "section", "from": "Osc", "to": "OSC 1"}) is not None
+    assert chat_engine.sanitize_one({"op": "rename", "kind": "widget", "from": "a", "to": "b"}) is None
+    assert chat_engine.sanitize_one({"op": "move_section", "name": "Osc", "row": 0, "order": True}) is None  # bool rejected
+    assert chat_engine.sanitize_one({"op": "move_section", "name": "Osc", "row": 999, "order": 0}) is None     # out of band
+    assert chat_engine.sanitize_one({"op": "move_section", "name": "Osc", "row": "1", "order": "2"}) == {"op": "move_section", "name": "Osc", "row": 1, "order": 2}
+    assert chat_engine.sanitize_one({"op": "order_sections", "by": "vibes"}) is None
+    assert chat_engine.sanitize_one({"op": "style", "name": "Osc"}) is None  # style with no property = nothing to do
+    assert chat_engine.sanitize_one({"op": "style", "name": "Osc", "bold": True, "font_size": 60}) is None
+    assert chat_engine.sanitize_one({"op": "delete_everything"}) is None
+    assert chat_engine.sanitize_one("not a dict") is None
+    assert chat_engine.sanitize_one({"op": "invert", "label": "Cutoff", "on": "yes"}) is None  # bool only
     # set op (live CC move): value 0-127, percent 0-100 -> wire, bool -> 127/0, junk refused
-    assert plugin_api._sanitize_one({"op": "set", "label": "Cutoff", "value": 64}) == {"op": "set", "label": "Cutoff", "value": 64}
-    assert plugin_api._sanitize_one({"op": "set", "label": "Cutoff", "percent": 50}) == {"op": "set", "label": "Cutoff", "value": 64}
-    assert plugin_api._sanitize_one({"op": "set", "label": "Keys Hold", "value": True}) == {"op": "set", "label": "Keys Hold", "value": 127}
-    assert plugin_api._sanitize_one({"op": "set", "label": "Keys Hold", "value": False}) == {"op": "set", "label": "Keys Hold", "value": 0}
-    assert plugin_api._sanitize_one({"op": "set", "label": "Cutoff", "value": 200}) is None
-    assert plugin_api._sanitize_one({"op": "set", "label": "Cutoff", "percent": 101}) is None
-    assert plugin_api._sanitize_one({"op": "set", "label": "", "value": 5}) is None
-    assert plugin_api._sanitize_one({"op": "set", "label": "Cutoff"}) is None
+    assert chat_engine.sanitize_one({"op": "set", "label": "Cutoff", "value": 64}) == {"op": "set", "label": "Cutoff", "value": 64}
+    assert chat_engine.sanitize_one({"op": "set", "label": "Cutoff", "percent": 50}) == {"op": "set", "label": "Cutoff", "value": 64}
+    assert chat_engine.sanitize_one({"op": "set", "label": "Keys Hold", "value": True}) == {"op": "set", "label": "Keys Hold", "value": 127}
+    assert chat_engine.sanitize_one({"op": "set", "label": "Keys Hold", "value": False}) == {"op": "set", "label": "Keys Hold", "value": 0}
+    assert chat_engine.sanitize_one({"op": "set", "label": "Cutoff", "value": 200}) is None
+    assert chat_engine.sanitize_one({"op": "set", "label": "Cutoff", "percent": 101}) is None
+    assert chat_engine.sanitize_one({"op": "set", "label": "", "value": 5}) is None
+    assert chat_engine.sanitize_one({"op": "set", "label": "Cutoff"}) is None
 
 
 def test_sanitize_edges():
-    e = plugin_api._sanitize_edge({"kind": "move", "target": "Cutoff", "from": 0, "to": 127, "duration_ms": 5000, "curve": "lin", "bogus": 9})
+    e = chat_engine.sanitize_edge({"kind": "move", "target": "Cutoff", "from": 0, "to": 127, "duration_ms": 5000, "curve": "lin", "bogus": 9})
     assert e == {"kind": "move", "target": "Cutoff", "from": 0, "to": 127, "duration_ms": 5000, "curve": "lin"}, e
-    assert plugin_api._sanitize_edge({"kind": "move", "target": "Cutoff", "from": 0, "to": 200, "duration_ms": 5000}) is None      # to>127
-    assert plugin_api._sanitize_edge({"kind": "move", "target": "Cutoff", "from": 0, "to": 9, "duration_ms": 5}) is None           # <10ms
-    assert plugin_api._sanitize_edge({"kind": "lfo", "target": "Cutoff", "wave": "square"}) is None                                 # not a wave
-    assert plugin_api._sanitize_edge({"kind": "lfo", "target": "Cutoff", "rate_hz": 99}) is None
-    assert plugin_api._sanitize_edge({"kind": "lfo", "target": "Cutoff", "phase": 0.5}) == {"kind": "lfo", "target": "Cutoff", "phase": 0.5}
-    w = plugin_api._sanitize_edge({"kind": "watch", "source": "Timbre", "once": False, "then": [
+    assert chat_engine.sanitize_edge({"kind": "move", "target": "Cutoff", "from": 0, "to": 200, "duration_ms": 5000}) is None      # to>127
+    assert chat_engine.sanitize_edge({"kind": "move", "target": "Cutoff", "from": 0, "to": 9, "duration_ms": 5}) is None           # <10ms
+    assert chat_engine.sanitize_edge({"kind": "lfo", "target": "Cutoff", "wave": "square"}) is None                                 # not a wave
+    assert chat_engine.sanitize_edge({"kind": "lfo", "target": "Cutoff", "rate_hz": 99}) is None
+    assert chat_engine.sanitize_edge({"kind": "lfo", "target": "Cutoff", "phase": 0.5}) == {"kind": "lfo", "target": "Cutoff", "phase": 0.5}
+    w = chat_engine.sanitize_edge({"kind": "watch", "source": "Timbre", "once": False, "then": [
         {"kind": "lfo", "target": "Resonance", "center": 64, "amp": 25, "rate_hz": 0.5, "wave": "tri"}]})
+    assert w is not None
     assert w["then"][0]["center"] == 64 and w["once"] is False
-    assert plugin_api._sanitize_edge({"kind": "when", "source": "Wave", "level": 89, "crosses": "up"}) is None       # then missing
-    assert plugin_api._sanitize_edge({"kind": "when", "source": "Wave", "level": 89, "crosses": "sideways", "then": [{"kind": "move", "target": "x", "from": 0, "to": 1, "duration_ms": 100}]}) is None
+    assert chat_engine.sanitize_edge({"kind": "when", "source": "Wave", "level": 89, "crosses": "up"}) is None       # then missing
+    assert chat_engine.sanitize_edge({"kind": "when", "source": "Wave", "level": 89, "crosses": "sideways", "then": [{"kind": "move", "target": "x", "from": 0, "to": 1, "duration_ms": 100}]}) is None
     # watch edges keep level/crosses (validator accepts them)
-    wd = plugin_api._sanitize_edge({"kind": "watch", "source": "Timbre", "level": 40, "crosses": "down",
+    wd = chat_engine.sanitize_edge({"kind": "watch", "source": "Timbre", "level": 40, "crosses": "down",
                                     "then": [{"kind": "move", "target": "x", "from": 0, "to": 1, "duration_ms": 100}]})
     assert wd and wd.get("crosses") == "down" and wd.get("level") == 40, wd
     # then-lfo source is forced to 'lfo' — a stray label used to
     # pass the sanitizer and blow up the SAVE later (whole doc refused)
-    tl = plugin_api._sanitize_edge({"kind": "watch", "source": "Timbre",
+    tl = chat_engine.sanitize_edge({"kind": "watch", "source": "Timbre",
                                     "then": [{"kind": "lfo", "source": "wah", "target": "Res", "center": 64, "amp": 10}]})
     assert tl and tl["then"][0]["source"] == "lfo", tl
-    deep = plugin_api._sanitize_edge({"kind": "when", "source": "Wave", "level": 1, "crosses": "up",
+    deep = chat_engine.sanitize_edge({"kind": "when", "source": "Wave", "level": 1, "crosses": "up",
                                       "then": [{"kind": "when", "source": "a", "level": 2, "crosses": "up", "then": [{"kind": "move", "target": "b", "from": 0, "to": 1, "duration_ms": 10}]}]})
     assert deep is None  # then-edges must be move|lfo — no trigger nesting, same law as the validator
 
 
 def test_system_prompt():
-    s = plugin_api._chat_system(SUMMARY)
+    s = chat_engine.build_system_prompt(SUMMARY)
     assert "Cutoff" in s and "matrix_add" in s and "70% -> 89" in s
     assert "json" in s.lower()
     assert "same language" in s
@@ -165,7 +167,7 @@ def test_chat_profile_lines():
     big = {"controls": [{"id": f"c{i}", "label": f"Ctrl {i}", "cc": i % 128,
                           "widget": "knob", "section": "S"} for i in range(300)],
            "matrix": []}
-    out = plugin_api._chat_profile_lines(big)
+    out = chat_engine.profile_lines(big)
     assert "- Ctrl 84 (" in out, "line rendering lost a control"   # was inside the old mid-'save_btn' cut zone
     assert "- Ctrl 299 (" in out, "300 short lines fit — no silent loss"
     assert all(l.startswith("- ") for l in out.splitlines()), "every line is a whole record"
@@ -173,14 +175,14 @@ def test_chat_profile_lines():
     monster = {"controls": [{"id": f"c{i}", "label": "L" * 60 + str(i), "cc": i % 128,
                               "widget": "slider", "section": "SomeSection"} for i in range(800)],
                "matrix": []}
-    out3 = plugin_api._chat_profile_lines(monster)
+    out3 = chat_engine.profile_lines(monster)
     assert "further entries exist" in out3, "overflow must drop WHOLE lines and say so"
     assert all(l.startswith("- ") or l.startswith("- (") for l in out3.splitlines())
     small = {"controls": [{"label": "Wave", "cc": 21}, {"label": "Fader", "cc": 3, "widget": "slider", "invert": True}], "matrix": [{"kind": "lfo", "target": "Wave"}]}
-    out2 = plugin_api._chat_profile_lines(small)
+    out2 = chat_engine.profile_lines(small)
     assert "- Wave (cc21)" in out2 and "- Fader (cc3, slider, inverted)" in out2 and "- lane {" in out2, out2
     assert "further entries exist" not in out2, "small profiles must not claim overflow"
-    sys_txt = plugin_api._chat_system(small)
+    sys_txt = chat_engine.build_system_prompt(small)
     assert "one line per control" in sys_txt and "- Wave (cc21)" in sys_txt  # rendered lines, not a raw dump
 
 
@@ -407,6 +409,8 @@ def test_run_proposal_routes_through_the_aux_task():
     assert kw["max_tokens"] == chat_engine.EFFORT_TOKENS["fast"]
     assert kw["temperature"] == 0.1
     assert "Cutoff" in kw["system_prompt"], "the profile summary must ride in the system prompt"
+    assert "start the matrix" in kw["input"][0]["text"] and "start the matrix" not in kw["instructions"], \
+        "instructions and input both ride the request — never send the same text twice"
     assert out["ok"] and out["ops"] == [{"op": "matrix", "action": "start"}]
     assert out["dropped"] and "nonsense" in out["dropped"][0]
     assert out["model"] == "fake/model-1", "the pane shows which lane actually answered"
@@ -425,8 +429,9 @@ def test_run_proposal_carries_the_conversation():
                              log=[{"role": "user", "text": "paint cutoff purple"}] * 20)
     kw = llm.kwargs
     assert kw is not None, "run_proposal never reached the lane"
-    assert "CONVERSATION SO FAR" in kw["instructions"]
-    assert kw["instructions"].count("paint cutoff purple") <= 6, "log must stay bounded"
+    body = kw["input"][0]["text"]
+    assert "CONVERSATION SO FAR" in body, "the conversation must ride in the input block"
+    assert body.count("paint cutoff purple") <= 6, "log must stay bounded"
 
 
 def test_run_proposal_falls_back_to_extract_json():
@@ -577,7 +582,11 @@ def test_dashboard_half_holds_no_credentials():
                  "_CHAT_LANES", "127.0.0.1:1249", "127.0.0.1:11434", "127.0.0.1:8091",
                  "api_key"):
         assert gone not in src, f"{gone!r} is back in the dashboard half"
-    assert "from chat_engine import" in src, "the proposal gate stays shared with the RPC handler"
+    assert "/ask" not in src and "/llm/models" not in src, "the credential-holding routes stay dead"
+    # The gate has exactly one home. The dashboard half used to re-export its names
+    # for a battery that no longer runs a transport — dead weight, and a reviewer
+    # rightly asks why a REST half imports a chat gate it never calls.
+    assert "chat_engine" not in src, "no vestigial chat re-export in the REST half"
 
 
 def test_store_lives_in_the_profile_home():

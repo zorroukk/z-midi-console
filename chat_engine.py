@@ -35,8 +35,12 @@ PROPOSAL_SCHEMA = {
     "properties": {
         "say": {"type": "string"},
         "ops": {"type": "array", "items": {"type": "object"}},
+        "say": {"type": "string"},
     },
-    "required": ["say", "ops"],
+    # Only ops is required: the gate already tolerates a missing say, and a
+    # strict required list turns a usable proposal into a ValueError the moment
+    # the operator has the optional jsonschema package installed.
+    "required": ["ops"],
 }
 
 #: effort -> reply budget. Thinking models spend budget on hidden reasoning
@@ -399,8 +403,13 @@ def run_proposal(llm, *, text, summary, log=None, effort="auto"):
             turns.append(f"{m['role']}: {str(m['text'])[:1200]}")
     ask = text if not turns else (
         "CONVERSATION SO FAR (oldest first):\n" + "\n".join(turns) + "\n\nNEW REQUEST: " + text)
+    # instructions and input both ride the request — sending the same string in
+    # each one just doubles the prompt. The framing goes in instructions, the
+    # conversation + request in the input block.
     result = llm.complete_structured(
-        instructions=ask,
+        instructions=("Turn the request into a proposal object: a short say line and the "
+                    "ops that do it, using only the whitelisted ops in the system prompt. "
+                    "Target controls by label exactly as the profile summary lists them."),
         input=[{"type": "text", "text": ask}],
         json_schema=PROPOSAL_SCHEMA,
         schema_name="z-midi-console.proposal",

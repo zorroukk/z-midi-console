@@ -527,7 +527,7 @@ def _make_chat_ask(ctx):
         try:
             # Redact at the boundary: this text leaves the machine. force=True keeps
             # the mask on even when the operator turned security.redact_secrets off.
-            from agent.redact import redact_sensitive_text
+            from agent.redact import redact_sensitive_text  # type: ignore[import-not-found]
             text = redact_sensitive_text(text, force=True)
         except Exception:  # noqa: BLE001 — no agent.redact (standalone): send as typed
             pass
