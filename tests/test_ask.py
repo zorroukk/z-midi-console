@@ -645,9 +645,13 @@ def test_manifests_agree_on_one_version():
     import re as _re
     yml = (_ROOT / "plugin.yaml").read_text(encoding="utf-8")
     man = _json.loads((_ROOT / "dashboard" / "manifest.json").read_text(encoding="utf-8"))
-    ver = _re.search(r"^version:\s*\"?([0-9][^\"\s#]*)\"?", yml, _re.M).group(1)
+    mv = _re.search(r"^version:\s*\"?([0-9][^\"\s#]*)\"?", yml, _re.M)
+    assert mv is not None, "plugin.yaml has no version field"
+    ver = mv.group(1)
     assert str(man["version"]) == ver, f"dashboard/manifest.json says {man['version']!r}, plugin.yaml says {ver!r}"
-    floor = _re.search(r'requires_hermes:\s*"([^"]+)"', yml).group(1)
+    mf = _re.search(r'requires_hermes:\s*"([^"]+)"', yml)
+    assert mf is not None, "plugin.yaml has no requires_hermes floor"
+    floor = mf.group(1)
     assert floor == ">=0.23.1", f"the RPC/aux seam needs 0.23.1, manifest says {floor!r}"
 
 
