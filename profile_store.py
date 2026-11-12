@@ -7,8 +7,10 @@ hard-coded — the MicroFreak is just a bundled profile.
 
 Tiers:
 - bundled: profiles/*.json next to this file (read-only, ships with the plugin)
-- user:    <LOCALAPPDATA|~/.local/share>/z-midi-console/profiles/*.json
-           (editable; overrides a bundled profile with the same profile_id)
+- user:    <hermes home>/plugin-data/z-midi-console/profiles/*.json
+           (editable; overrides a bundled profile with the same profile_id.
+            A pre-0.2 machine-wide store under LOCALAPPDATA / ~/.local/share is
+            copied in once by data_dir() and left where it is.)
 
 Laws (inherited from mf-visualizer registry v2):
 - Refuse-closed: a profile that fails validation is NEVER loaded or saved.

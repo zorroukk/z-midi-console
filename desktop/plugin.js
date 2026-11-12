@@ -1695,8 +1695,12 @@ function Surface() {
   // event back. An RPC call holds this client's request lane until the handler
   // returns, so the handler answers with a job id at once and pushes the
   // proposal onto the session's event stream — awaited here, keyed by that job.
-  // The old 25 s IPC ceiling is gone (nothing stays open), so the wall clock is
-  // the model's own: 150 s before the box calls it stalled.
+  // The job id is minted HERE and its waiter registered BEFORE the call goes
+  // out: a backend that fails instantly can emit the answer before the {job}
+  // reply reaches this pane, and an unmatched event is dropped — the box would
+  // then sit out its whole timeout blaming a slow model for a failure that took
+  // milliseconds. The old 25 s IPC ceiling is gone (nothing stays open), so the
+  // wall clock is the model's own: 150 s before the box calls it stalled.
   useEffect(() => {
     const off = host.onEvent('plugin.z-midi-console.chat.answered', (ev) => {
       const p = (ev && ev.payload) || {}
@@ -1706,26 +1710,52 @@ function Surface() {
       clearTimeout(wait.timer)
       wait.resolve(p)
     })
-    return off
+    const jobs = chatJobs.current
+    return () => {
+      off()
+      // Closing the console mid-think: park the timers and answer the pending
+      // send honestly instead of leaving a 150 s timer firing into a dead pane.
+      for (const k of Object.keys(jobs)) {
+        clearTimeout(jobs[k].timer)
+        jobs[k].resolve({ ok: false, error: 'the console closed while the model was thinking — nothing applied' })
+      }
+    }
+  }, [])
+  useEffect(() => {
+    // effort is persisted; the reader used to live in the deleted loadLanes(),
+    // which left the knob write-only and silently reset it to auto on reload.
+    try { const ef = api.storage.get('chat_effort'); if (ef) setChatEffort(String(ef)) } catch (e) {}
   }, [])
   const chatAsk = async (payload) => {
-    const sid = host.state.focusedSessionId.get()
+    let sid = null
+    try { sid = host.state.focusedSessionId.get() } catch (e) { sid = null }
     if (!sid) {
       return { ok: false, error: 'the chat box answers through the focused chat session — focus one and press Send again' }
     }
-    let sent = null
-    try {
-      sent = await host.request('plugin.z-midi-console.chat.ask', Object.assign({ session_id: sid }, payload))
-    } catch (e) {
-      return { ok: false, error: 'the console backend refused the ask: ' + ((e && e.message) || 'internal error') }
+    const job = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '').replace(/-/g, '')
+    if (!/^[0-9a-f]{32}$/.test(job)) {
+      return { ok: false, error: 'this webview has no crypto.randomUUID — the chat box cannot anchor its job' }
     }
-    if (!sent || !sent.job) return { ok: false, error: 'the console backend sent no job id back' }
     return await new Promise((resolve) => {
       const timer = setTimeout(() => {
-        delete chatJobs.current[sent.job]
-        resolve({ ok: false, error: 'the model took over 150 s — it may be cold-loading or queued behind another job; press Send again once it is up' })
+        delete chatJobs.current[job]
+        resolve({ ok: false, error: 'no answer in 150 s — the model may be cold-loading or queued behind another job, or the focused chat session closed while it thought; press Send again once it is up' })
       }, 150000)
-      chatJobs.current[sent.job] = { resolve, timer }
+      chatJobs.current[job] = { resolve, timer }
+      const settle = (obj) => { clearTimeout(timer); delete chatJobs.current[job]; resolve(obj) }
+      host.request('plugin.z-midi-console.chat.ask', Object.assign({ session_id: sid, job }, payload))
+        .then((sent) => {
+          if (!sent || sent.job !== job) settle({ ok: false, error: 'the console backend did not echo the job id' })
+          // else: the answer arrives as the chat.answered session event
+        })
+        .catch((e) => {
+          const m = (e && e.message) || 'internal error'
+          // A host older than the manifest floor answers -32601; name that case
+          // instead of showing a bare JSON-RPC code.
+          settle({ ok: false, error: (/32601|not found|plugin_rpc_failed/i.test(m)
+            ? 'this Hermes build has no plugin RPC (needs 0.23.1): '
+            : 'the console backend refused the ask: ') + m })
+        })
     })
   }
   const applyChatOps = async (ops, pidAtSend) => {
@@ -1842,19 +1872,24 @@ function Surface() {
       text: (m.role === 'done' || m.role === 'err' ? 'console result: ' : '') + m.text,
     }))
     setChatIn(''); setChatLog(l => [...l, { role: 'user', text }]); setChatBusy(true)
-    const r = await chatAsk({ text, effort: chatEffort, summary, log: logForCtx })
-    if (!r) { setChatBusy(false); setChatLog(l => [...l, { role: 'err', text: 'chat backend unreachable' }]); return }
-    if (!r.ok) { setChatBusy(false); setChatLog(l => [...l, { role: 'err', text: r.error || 'refused' }]); return }
-    if (r.say) setChatLog(l => [...l, { role: 'say', text: r.say + (r.model ? `  ·  ${r.model}` : '') }])
-    if ((r.dropped || []).length) setChatLog(l => [...l, { role: 'err', text: `dropped ${r.dropped.length} unknown op(s): ${r.dropped.join(' · ').slice(0, 160)}` }])
-    if ((r.ops || []).length) {
-      // Abort guard: a throwing op must never leave the box stuck in busy —
-      // catch per batch, keep the already-applied truth honest.
-      let lines = []
-      try { lines = await applyChatOps(r.ops, pidAtSend) } catch (e) { lines = ['✗ apply aborted: ' + ((e && e.message) || 'internal error')] }
-      setChatLog(l => [...l, ...lines.map(t => ({ role: t.startsWith('✓') ? 'done' : 'err', text: t }))])
+    // busy is cleared in `finally`: chatAsk can throw synchronously (an older
+    // SDK without the focusedSessionId atom), and a busy flag left true freezes
+    // the box until the pane reloads.
+    try {
+      const r = await chatAsk({ text, effort: chatEffort, summary, log: logForCtx })
+      if (!r || !r.ok) { setChatLog(l => [...l, { role: 'err', text: (r && r.error) || 'refused' }]); return }
+      if (r.say) setChatLog(l => [...l, { role: 'say', text: r.say + (r.model ? `  ·  ${r.model}` : '') }])
+      if ((r.dropped || []).length) setChatLog(l => [...l, { role: 'err', text: `dropped ${r.dropped.length} unknown op(s): ${r.dropped.join(' · ').slice(0, 160)}` }])
+      if ((r.ops || []).length) {
+        // Abort guard: a throwing op must never leave the box stuck in busy —
+        // catch per batch, keep the already-applied truth honest.
+        let lines = []
+        try { lines = await applyChatOps(r.ops, pidAtSend) } catch (e) { lines = ['✗ apply aborted: ' + ((e && e.message) || 'internal error')] }
+        setChatLog(l => [...l, ...lines.map(t => ({ role: t.startsWith('✓') ? 'done' : 'err', text: t }))])
+      }
+    } finally {
+      setChatBusy(false)
     }
-    setChatBusy(false)
   }
   // Ignore/restore law (owner ruling): ignores are persistent until explicitly
   // restored — the Ignored list below the learn prompts is the undo path.
@@ -2750,7 +2785,7 @@ function Surface() {
         // Effort knob (owner ask 2026-11-10): thinking models spend the reply
         // budget on hidden reasoning first — auto = lane default; fast pins it
         // low/off; thoughtful raises it (and the reply cap) and runs slower.
-        jsx('select', { value: chatEffort, onChange: (e) => { setChatEffort(e.target.value); try { api.storage.set('chat_effort', e.target.value) } catch (er) {} }, 'data-tip': 'How hard the model thinks before answering. auto = the model\'s own default · fast = pin thinking low/off (snappier, a bit dumber) · balanced = medium thinking budget · thoughtful = high thinking + bigger reply room (slowest, best at multi-part asks). Small max_tokens can make thinking models return EMPTY — this knob is why auto exists', style: { fontSize: 12, padding: '4px 6px', background: '#1b2129', color: '#e6edf3', border: '1px solid #3d444d', borderRadius: 6 }, children: [['auto', 'effort: auto'], ['fast', 'effort: fast'], ['balanced', 'effort: balanced'], ['thoughtful', 'effort: thoughtful']].map(([v, l]) => jsx('option', { value: v, children: l }, 'ce-' + v)) }),
+        jsx('select', { value: chatEffort, onChange: (e) => { setChatEffort(e.target.value); try { api.storage.set('chat_effort', e.target.value) } catch (er) {} }, 'data-tip': 'How much reply room the model gets for this box. auto = the slot\'s own default · fast = short budget (snappier, can truncate a long plan) · balanced = room for a multi-op answer · thoughtful = biggest budget. Reasoning effort itself belongs to the model now — pin it under Settings → Models → Auxiliary → MIDI Console chat. Too small a budget can make a thinking model return EMPTY', style: { fontSize: 12, padding: '4px 6px', background: '#1b2129', color: '#e6edf3', border: '1px solid #3d444d', borderRadius: 6 }, children: [['auto', 'effort: auto'], ['fast', 'effort: fast'], ['balanced', 'effort: balanced'], ['thoughtful', 'effort: thoughtful']].map(([v, l]) => jsx('option', { value: v, children: l }, 'ce-' + v)) }),
         jsx('button', { onClick: () => setChat(false), 'data-tip': 'Close the chat box', style: { fontSize: 11, fontWeight: 700, padding: '3px 8px', border: '1px solid #3d444d', background: 'transparent', color: '#e6edf3', borderRadius: 6, cursor: 'pointer' }, children: '\u00d7 close' }),
       ] }),
       jsxs('div', { ref: (el) => { if (el) el.scrollTop = el.scrollHeight }, style: { maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }, children: [

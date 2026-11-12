@@ -8,6 +8,8 @@ from __future__ import annotations
 import base64
 import contextvars
 import json
+import logging
+import re
 import threading
 import uuid
 
@@ -503,6 +505,37 @@ def _control_handler(control=None, value=None, **_kwargs) -> str:
 # interrupts and approvals with it. The proposal arrives as the session event
 # `plugin.z-midi-console.chat.answered` carrying the same job id.
 _CHAT_SLOTS = threading.BoundedSemaphore(2)  # same in-flight cap the old /ask route used
+_CHAT_LOG = logging.getLogger("zmc.chat")
+_JOB_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _redact_outbound(text: str) -> str:
+    """Redaction sits on a privacy boundary, so it fails CLOSED.
+
+    ``agent.redact.redact_sensitive_text`` is a listed public plugin surface
+    (developer-guide/plugins/public-api.md), and ``force=True`` keeps the mask
+    on even when the operator turned ``security.redact_secrets`` off. If the
+    redactor is missing or raises, the ask is REFUSED by name — the failure
+    this guards is silently shipping unredacted text off the machine.
+    """
+    try:
+        from agent.redact import redact_sensitive_text
+    except ImportError as exc:
+        raise RuntimeError(
+            f"redactor unavailable ({exc.__class__.__name__}) — refusing to send unredacted text") from exc
+    return redact_sensitive_text(text, force=True)
+
+
+def _redact_log(log):
+    """The conversation log leaves the machine too — mask every turn."""
+    if not isinstance(log, list):
+        return None
+    out = []
+    for e in log:
+        if isinstance(e, dict) and isinstance(e.get("text"), str):
+            e = dict(e, text=_redact_outbound(e["text"]))
+        out.append(e)
+    return out
 
 
 def _make_chat_ask(ctx):
@@ -517,30 +550,46 @@ def _make_chat_ask(ctx):
         p = params or {}
         if not session_id:
             raise ValueError("chat.ask needs a session_id — focus a chat session and press Send again")
-        text = str(p.get("text") or "").strip()[:4000]
+        text = str(p.get("text") or "").strip()
         if not text:
             raise ValueError("nothing to ask")
+        if len(text) > 4000:
+            # Refuse, never silently cut: the old route truncated a long paste
+            # and the user never learned the model had not seen the rest.
+            raise ValueError(f"ask is {len(text):,} characters — the chat box sends at most 4000")
         summary = p.get("summary")
         if not isinstance(summary, dict) or not isinstance(summary.get("controls"), list):
             raise ValueError("pane must send the profile summary (controls)")
         log, effort = p.get("log"), str(p.get("effort") or "auto")
-        try:
-            # Redact at the boundary: this text leaves the machine. force=True keeps
-            # the mask on even when the operator turned security.redact_secrets off.
-            from agent.redact import redact_sensitive_text  # type: ignore[import-not-found]
-            text = redact_sensitive_text(text, force=True)
-        except Exception:  # noqa: BLE001 — no agent.redact (standalone): send as typed
-            pass
-        job = uuid.uuid4().hex
+        # Redact before anything can shorten it: a mask cut by a later [:4000]
+        # would ship the tail of a secret in the clear.
+        text = _redact_outbound(text)
+        log = _redact_log(log)
+        # The pane generates the job id and registers its waiter BEFORE the call
+        # is sent. A backend that fails instantly can emit the answer before the
+        # {job} result reaches the client — an unmatched event would be dropped
+        # and the box would sit out its whole timeout blaming a slow model.
+        job = str(p.get("job") or "")
+        if not _JOB_RE.match(job):
+            job = uuid.uuid4().hex
 
         def run():
+            out = {"ok": False, "error": "chat worker stopped before the proposal"}
             try:
                 out = chat_engine.run_proposal(ctx.llm, text=text, summary=summary, log=log, effort=effort)
             except Exception as exc:  # noqa: BLE001 — a lane failure is data, never a crash
                 out = {"ok": False, "error": f"{exc.__class__.__name__}: {str(exc)[:220]}"}
             finally:
                 _CHAT_SLOTS.release()
-            ctx.emit_to_session(session_id, "chat.answered", dict(out, job=job))
+                # Emit inside the finally: the pane must hear from us on EVERY
+                # exit, and a broken emit must not kill the thread in silence.
+                try:
+                    if not ctx.emit_to_session(session_id, "chat.answered", dict(out, job=job)):
+                        _CHAT_LOG.warning("chat.answered job %s: no viewer on session %s "
+                                          "— the pane will time out", job[:8], session_id)
+                except Exception as exc:  # noqa: BLE001
+                    _CHAT_LOG.warning("chat.answered job %s: emit failed: %s: %s",
+                                      job[:8], exc.__class__.__name__, str(exc)[:200])
 
         if not _CHAT_SLOTS.acquire(blocking=False):
             raise RuntimeError("chat lane busy (2 asks already running) — retry in a moment")

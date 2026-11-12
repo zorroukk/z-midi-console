@@ -35,7 +35,6 @@ PROPOSAL_SCHEMA = {
     "properties": {
         "say": {"type": "string"},
         "ops": {"type": "array", "items": {"type": "object"}},
-        "say": {"type": "string"},
     },
     # Only ops is required: the gate already tolerates a missing say, and a
     # strict required list turns a usable proposal into a ValueError the moment
@@ -48,11 +47,6 @@ PROPOSAL_SCHEMA = {
 #: because the aux slot (auxiliary.midi_chat) now owns reasoning effort.
 EFFORT_TOKENS = {"fast": 500, "balanced": 900, "thoughtful": 1400}
 
-
-HEX6 = re.compile(r"^#[0-9a-f]{6}$")
-EDGE_KINDS = {"lfo", "move", "when", "watch"}
-CURVES = {"lin", "exp", "log", "s", "step4", "snap12"}
-WAVES = {"sine", "tri", "saw", "sh"}
 
 def int_in(v, lo: int, hi: int):
     if isinstance(v, bool):

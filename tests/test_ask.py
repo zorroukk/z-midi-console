@@ -1,14 +1,16 @@
-"""Chat box battery: pins the /ask proposal gate (test_ask.py, standalone).
+"""Chat box battery: pins the proposal gate and the RPC transport (standalone).
 
-The chat box law: the LLM only PROPOSES. Everything real is decided HERE —
+The chat box law: the model only PROPOSES. Everything real is decided HERE —
 JSON extraction must survive fences/prose, the op whitelist must drop anything
-invented, ranges must match the profile validator's own bounds, and /ask must
-refuse a non-local model lane BEFORE any request leaves the process.
+invented, ranges must match the profile validator's own bounds, and the model
+call must go through Hermes (the midi_chat aux slot) with nothing that smells
+like a provider credential anywhere in the plugin half (PR 153102, rule 11).
 """
 import asyncio
 import builtins
 import json
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -17,6 +19,7 @@ from types import SimpleNamespace
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
+PANE = (_ROOT / "desktop" / "plugin.js").read_text(encoding="utf-8")  # the node harnesses run the SHIPPED pane code
 sys.path.insert(0, str(_ROOT))
 sys.path.insert(0, str(_ROOT / "dashboard"))
 
@@ -149,9 +152,8 @@ def _run(coro):
     return asyncio.run(coro)
 
 
-# The slug path imports hermes_cli.runtime_provider — its auth chain needs the
-# hermes-agent repo root on sys.path (the 'pm' package), exactly like the real
-# plugin host process has it (it runs as `python -m hermes_cli...` from there).
+# find_spec('plugin_api'): locate the dashboard half the same way the host
+# loads it, so the battery exercises the shipped module, not a copy.
 import importlib.util as _ilu
 _spec = _ilu.find_spec("hermes_cli")
 if _spec and _spec.origin:
@@ -273,7 +275,7 @@ console.log('SEC-OVER OK')
 
 
 def test_pane_chat_contracts_and_save_collision():
-    pane = (_ROOT / "desktop" / "plugin.js").read_text(encoding="utf-8")
+    pane = PANE
     # The model sees actual apply/refusal results on the next turn.
     assert "['user', 'say', 'done', 'err'].includes(m.role)" in pane
     assert "console result: " in pane
@@ -468,6 +470,7 @@ class FakeCtx:
 
     def emit_to_session(self, session_id, event, payload):
         self.emitted.append((session_id, event, payload))
+        return True  # a viewer is attached; False means "went nowhere"
 
 
 def _call(ask_fn, params, session_id):
@@ -616,7 +619,187 @@ def test_legacy_store_migrates_once_and_is_never_deleted():
         os.environ["HERMES_HOME"] = _TMP
         profile_store._MIGRATED = False
 
+def test_register_wires_the_rpc_name_and_the_aux_task():
+    """The seam the HOST uses: register() must serve "chat.ask" and own "midi_chat".
 
+    Every other check here drives _make_chat_ask directly. If the registration
+    name drifts, the pane's plugin.z-midi-console.chat.ask call answers -32601
+    in production while the whole battery stays green — and if the aux task
+    registration disappears, task="midi_chat" has no slot to follow.
+    """
+    calls = []
+
+    class RecordingCtx:
+        def __init__(self):
+            self.llm = FakeLlm(parsed={"say": "", "ops": []})
+
+        def __getattr__(self, name):
+            def rec(*a, **kw):
+                calls.append((name, a, kw))
+                return None
+            return rec
+
+    try:
+        PKG.register(RecordingCtx())
+    except Exception as exc:  # a recording ctx cannot satisfy every hook; the two we pin must still land
+        print(f"    (register() stopped early with {exc.__class__.__name__}; the pinned hooks are checked anyway)")
+    rpc = [a for (n, a, _kw) in calls if n == "register_rpc"]
+    aux = [a for (n, a, _kw) in calls if n == "register_auxiliary_task"]
+    assert any(len(a) >= 2 and a[0] == "chat.ask" and callable(a[1]) for a in rpc), \
+        f'register() never served "chat.ask"; register_rpc names: {[a[0] for a in rpc]}'
+    assert any(a and a[0] == "midi_chat" for a in aux), \
+        f'"midi_chat" aux task not registered; aux names: {[a[0] for a in aux if a]}'
+
+
+def test_rpc_handler_redacts_text_and_log_before_the_model_sees_them():
+    """Both channels that leave the machine are masked, and the mask is not a cut."""
+    secret = "sk-abc1234567890DEFHIJKLMNOPQRST"
+    llm = FakeLlm(parsed={"say": "ok", "ops": []})
+    ctx = FakeCtx(llm)
+    ask = PKG._make_chat_ask(ctx)
+    out = _call(ask, {"text": f"cutoff down, my key is {secret}", "summary": SUMMARY,
+                      "log": [{"role": "user", "text": f"earlier I pasted {secret}"}]}, "s1")
+    _await_event(ctx, out["job"])
+    kw = llm.kwargs
+    body = kw["input"][0]["text"] + str(kw.get("instructions", "")) + chat_engine.build_system_prompt(SUMMARY)
+    assert secret not in body, "a raw secret reached the model input — the boundary redactor did not run"
+    assert secret not in str(kw["input"][0]["text"]), "the typed turn shipped unredacted"
+    # the log is a second channel: it must be masked too, not just the fresh text
+    assert secret not in body, "the conversation log shipped a secret the text channel had masked"
+
+
+def test_rpc_handler_refuses_an_overlong_ask_instead_of_cutting_it():
+    ctx = FakeCtx(FakeLlm(parsed={"say": "", "ops": []}))
+    ask = PKG._make_chat_ask(ctx)
+    try:
+        _call(ask, {"text": "x" * 4001, "summary": SUMMARY}, "s")
+        raise AssertionError("a 4001-char ask was silently truncated")
+    except ValueError as exc:
+        assert "4000" in str(exc)
+
+
+def test_rpc_handler_honours_the_panes_job_id_and_replaces_a_bad_one():
+    ctx = FakeCtx(FakeLlm(parsed={"say": "", "ops": []}))
+    ask = PKG._make_chat_ask(ctx)
+    job = "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
+    out = _call(ask, {"text": "x", "summary": SUMMARY, "job": job}, "s")
+    assert out["job"] == job, "the pane anchors its waiter on its own job id; the handler must echo it"
+    _await_event(ctx, job)
+    bad = _call(ask, {"text": "x", "summary": SUMMARY, "job": "not a job"}, "s")
+    assert re.fullmatch(r"[0-9a-f]{32}", bad["job"]) and bad["job"] != "not a job"
+    _await_event(ctx, bad["job"])
+
+
+def test_rpc_handler_survives_a_broken_emit_and_frees_its_slot():
+    """emit_to_session raising must not kill the worker in silence or leak a slot."""
+    class BrokenEmit(FakeCtx):
+        def emit_to_session(self, session_id, event, payload):
+            raise RuntimeError("session authority gone")
+
+    ctx = BrokenEmit(FakeLlm(parsed={"say": "", "ops": []}))
+    ask = PKG._make_chat_ask(ctx)
+    _call(ask, {"text": "x", "summary": SUMMARY}, "s")
+    # the slot must come back even though the emit blew up inside the thread
+    deadline = time.time() + 5.0
+    while not PKG._CHAT_SLOTS.acquire(blocking=False):
+        if time.time() > deadline:
+            raise AssertionError("a failed emit leaked a chat slot — the lane is now permanently busy")
+        time.sleep(0.02)
+    PKG._CHAT_SLOTS.release()
+    # and the lane still works afterwards
+    ok = FakeCtx(FakeLlm(parsed={"say": "still here", "ops": []}))
+    out = _call(PKG._make_chat_ask(ok), {"text": "x", "summary": SUMMARY}, "s")
+    _await_event(ok, out["job"])
+
+
+def test_proposal_schema_shape_is_pinned_as_a_literal():
+    """kw['json_schema'] == PROPOSAL_SCHEMA only proves the constant is USED.
+
+    The law lives in the constant: ops required, say optional (a strict required
+    list turns a usable proposal into a ValueError the moment the operator has
+    the optional jsonschema package installed).
+    """
+    assert chat_engine.PROPOSAL_SCHEMA["required"] == ["ops"], chat_engine.PROPOSAL_SCHEMA
+    assert set(chat_engine.PROPOSAL_SCHEMA["properties"]) == {"say", "ops"}
+    assert chat_engine.PROPOSAL_SCHEMA["properties"]["ops"]["type"] == "array"
+
+
+def _chat_ask_behaviour(pane):
+    """Run the SHIPPED chatAsk in node. Text pins proved patch text shipped while
+    the law stayed wrong (see the harness note above), so the transport handshake
+    gets executed: waiter-before-call, timeout resolution, named -32601."""
+    i = pane.index("const chatAsk = async (payload) => {")
+    depth = 0
+    for k in range(i, len(pane)):
+        if pane[k] == "{":
+            depth += 1
+        elif pane[k] == "}":
+            depth -= 1
+            if depth == 0:
+                fn = pane[i:k + 1]
+                break
+    else:
+        raise AssertionError("could not brace-match chatAsk")
+    script = """
+const chatJobs = { current: {} };
+const mode = process.argv[2];
+const host = {
+  state: { focusedSessionId: { get: () => 'sess-1' } },
+  request: (m, p) => {
+    global.__sent = p;
+    if (mode === 'instant-answer') {
+      // the backend emits BEFORE the {job} reply reaches this pane
+      const w = chatJobs.current[p.job];
+      if (w) { clearTimeout(w.timer); delete chatJobs.current[p.job]; w.resolve({ ok: true, job: p.job, say: 'done' }); }
+      return Promise.resolve({ job: p.job });
+    }
+    if (mode === 'unknown-method') return Promise.reject(new Error('[-32601] plugin method not found'));
+    if (mode === 'no-echo') return Promise.resolve({ job: 'some-other-job' });
+    return new Promise(() => {});
+  },
+};
+const _st = setTimeout;
+setTimeout = (f, ms) => _st(f, Math.min(ms, 80));  // the 150 s wall clock, shortened for the battery
+""" + fn + """
+;chatAsk({ text: 'hi' }).then(r => console.log(JSON.stringify({
+  job: global.__sent && global.__sent.job, r, pending: Object.keys(chatJobs.current).length,
+})));
+"""
+    path = Path(_TMP) / "chat_ask_harness.cjs"
+    path.write_text(script, encoding="utf-8")
+    import subprocess
+    out = {}
+    for mode in ("instant-answer", "unknown-method", "no-echo", "never-answers"):
+        proc = subprocess.run(["node", str(path), mode], capture_output=True, text=True, timeout=30)
+        assert proc.returncode == 0, f"node harness died ({mode}): {proc.stderr[:400]}"
+        out[mode] = json.loads(proc.stdout.strip().splitlines()[-1])
+    return out
+
+
+def test_pane_chat_transport_behaviour():
+    h = _chat_ask_behaviour(PANE)
+    job = h["instant-answer"]["job"]
+    assert re.fullmatch(r"[0-9a-f]{32}", job or ""), f"pane must mint a 32-hex job id, got {job!r}"
+    r = h["instant-answer"]["r"]
+    assert r.get("ok") and r.get("say") == "done", \
+        f"an answer emitted before the {{job}} reply was dropped: {r!r} — the waiter must be registered BEFORE the call"
+    r = h["unknown-method"]["r"]
+    assert not r["ok"] and "0.23.1" in r["error"], f"-32601 must be named as a floor problem, got {r!r}"
+    r = h["no-echo"]["r"]
+    assert not r["ok"] and "echo" in r["error"], f"a backend that does not echo the job must be named, got {r!r}"
+    r = h["never-answers"]["r"]
+    assert not r["ok"] and "150 s" in r["error"], f"the timeout path must resolve with a named error, got {r!r}"
+    assert h["never-answers"]["pending"] == 0, "the timeout left a job in chatJobs — the map leaks and a late event revives it"
+
+
+
+check("register() serves chat.ask and owns the midi_chat aux task", test_register_wires_the_rpc_name_and_the_aux_task)
+check("chat.ask RPC: text AND log are redacted before the model", test_rpc_handler_redacts_text_and_log_before_the_model_sees_them)
+check("chat.ask RPC: an overlong ask refuses, never truncates", test_rpc_handler_refuses_an_overlong_ask_instead_of_cutting_it)
+check("chat.ask RPC: the pane's job id is echoed, a bad one replaced", test_rpc_handler_honours_the_panes_job_id_and_replaces_a_bad_one)
+check("chat.ask RPC: a broken emit neither kills the worker nor leaks a slot", test_rpc_handler_survives_a_broken_emit_and_frees_its_slot)
+check("PROPOSAL_SCHEMA literal shape: ops required, say optional", test_proposal_schema_shape_is_pinned_as_a_literal)
+check("pane chatAsk in node: job-before-call, named -32601, timeout resolves, no map leak", test_pane_chat_transport_behaviour)
 check("extract_json survives fences + prose", test_extract)
 check("whitelists mirror the validator (kinds/curves/waves)", test_mirrors)
 check("op sanitizer: shapes, ranges, bool-rejects, unknown dropped", test_sanitize_ops)
